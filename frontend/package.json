@@ -7,9 +7,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "copy-webviewer": "node copy-webviewer.js",
+    "postinstall": "npm run copy-webviewer"
   },
   "dependencies": {
+    "@pdftron/webviewer": "^11.8.0",
     "@tanstack/react-router": "^1.134.15",
     "@tanstack/router-devtools": "^1.134.15",
     "@tanstack/router-vite-plugin": "^1.134.15",

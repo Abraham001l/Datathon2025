@@ -21,72 +21,82 @@ function UploadComponent() {
 	const [documents, setDocuments] = useState<Document[]>([])
 	const [isLoadingDocuments, setIsLoadingDocuments] = useState(true)
 
-	const { toasts, removeToast, success, error } = useToast()
+	const { toasts, removeToast, success, error, info } = useToast()
+
+	// Function to fetch documents
+	const fetchDocuments = async () => {
+		try {
+			setIsLoadingDocuments(true)
+			const response = await apiService.getDocuments(100) // Fetch up to 100 documents
+			setDocuments(response.files)
+		} catch (err) {
+			console.error('Failed to fetch documents:', err)
+			error('Failed to Load Documents', 'Could not fetch documents from the database')
+		} finally {
+			setIsLoadingDocuments(false)
+		}
+	}
 
 	// Fetch documents on component mount
 	useEffect(() => {
-		const fetchDocuments = async () => {
-			try {
-				setIsLoadingDocuments(true)
-				const response = await apiService.getDocuments(100) // Fetch up to 100 documents
-				setDocuments(response.files)
-			} catch (err) {
-				console.error('Failed to fetch documents:', err)
-				error('Failed to Load Documents', 'Could not fetch documents from the database')
-			} finally {
-				setIsLoadingDocuments(false)
-			}
-		}
-
 		fetchDocuments()
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [])
 
 	const handleSubmitDocument = async () => {
-		if ((!selectedFile && !selectedFileObject) || !projectSpecs.trim()) {
-			const errorMsg = 'Please select a file and provide project specifications'
-			error('Validation Failed', errorMsg)
+		// Validate that we have a file to upload
+		if (!selectedFileObject) {
+			error('No File Selected', 'Please select a file to upload')
 			return
 		}
 
 		try {
 			setIsSubmitting(true)
+			setIsUploading(true)
 
-			let filepath = selectedFile
+			// Show uploading toast
+			const filename = selectedFileObject.name
+			info('Uploading...', `Uploading ${filename}...`)
 
-			// If we have a file object, upload it first
-			if (selectedFileObject) {
-				setIsUploading(true)
+			// Upload the document asynchronously
+			const uploadResponse = await apiService.uploadDocument(selectedFileObject)
 
-				const uploadResponse = await apiService.uploadDocument(selectedFileObject)
-
-				if (uploadResponse.status !== 'success') {
-					throw new Error(`File upload failed: ${uploadResponse.message || 'Unknown error'}`)
-				}
-				filepath = uploadResponse.filepath
-				setIsUploading(false)
+			if (uploadResponse.status !== 'success') {
+				throw new Error(`File upload failed: ${uploadResponse.message || 'Unknown error'}`)
 			}
 
-			const response = await apiService.submitDocument(filepath, projectSpecs, '')
+			setIsUploading(false)
 
-			if (response.status === 'success') {
-				const successMsg = `Document submitted successfully! Submission ID: ${response.submission_id}`
-				success('Document Submitted', successMsg)
+			// Refresh documents list after successful upload
+			await fetchDocuments()
 
-				// Reset form
-				setSelectedFile('')
-				setSelectedFileObject(null)
-				setProjectSpecs('')
-			} else {
-				throw new Error(`Submission failed: ${response.message || 'Unknown error'}`)
+			// Show success toast with filename
+			success('Upload Successful', `Upload of ${filename} successful`)
+
+			// Reset form
+			setSelectedFile('')
+			setSelectedFileObject(null)
+			setProjectSpecs('')
+
+			// Submit document (placeholder for now - only if projectSpecs provided)
+			if (projectSpecs.trim()) {
+				try {
+					const response = await apiService.submitDocument(uploadResponse.filepath, projectSpecs, '')
+					if (response.status !== 'success') {
+						console.warn('Document submission failed:', response.message)
+					}
+				} catch (submitErr) {
+					// Don't show error for submission failure since upload was successful
+					console.warn('Document submission failed:', submitErr)
+				}
 			}
 		} catch (err: unknown) {
-			console.error('Failed to submit document:', err)
-			const errorMsg = `Failed to submit document: ${err instanceof Error ? err.message : String(err)}. Please try again.`
-			error('Submission Failed', errorMsg)
+			setIsUploading(false)
+			console.error('Failed to upload document:', err)
+			const errorMsg = `Failed to upload document: ${err instanceof Error ? err.message : String(err)}. Please try again.`
+			error('Upload Failed', errorMsg)
 		} finally {
 			setIsSubmitting(false)
-			setIsUploading(false)
 		}
 	}
 

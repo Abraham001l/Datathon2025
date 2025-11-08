@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
@@ -11,6 +12,7 @@ if str(parent_dir) not in sys.path:
     sys.path.insert(0, str(parent_dir))
 from database import get_database
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/view", tags=["view"])
 
 
@@ -32,24 +34,29 @@ async def list_file_ids(
     
     - **limit**: Maximum number of file IDs to return (default: all)
     """
+    logger.info(f"List file IDs request received, limit: {limit}")
     try:
         db, fs = get_database()
+        logger.debug("Connected to database")
         
         # Get list of file IDs
         file_ids = []
         query = fs.find()
         if limit:
             query = query.limit(limit)
+            logger.debug(f"Query limited to {limit} files")
         
         for grid_file in query:
             file_ids.append(str(grid_file._id))
         
+        logger.info(f"Retrieved {len(file_ids)} file IDs")
         return {
             "file_ids": file_ids,
             "count": len(file_ids)
         }
     
     except Exception as e:
+        logger.error(f"Error listing file IDs: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Error listing file IDs: {str(e)}"
@@ -67,8 +74,10 @@ async def list_documents(
     - **limit**: Maximum number of documents to return (default: 10)
     - **skip**: Number of documents to skip (default: 0)
     """
+    logger.info(f"List documents request received, limit: {limit}, skip: {skip}")
     try:
         db, fs = get_database()
+        logger.debug("Connected to database")
         
         # Get list of files from GridFS
         files = []
@@ -87,6 +96,7 @@ async def list_documents(
                 }
             })
         
+        logger.info(f"Retrieved {len(files)} documents")
         return {
             "files": files,
             "count": len(files),
@@ -95,6 +105,7 @@ async def list_documents(
         }
     
     except Exception as e:
+        logger.error(f"Error listing documents: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Error listing files: {str(e)}"
@@ -108,21 +119,25 @@ async def stream_document(file_id: str):
     
     - **file_id**: The MongoDB ObjectId of the file to stream
     """
+    logger.info(f"Stream document request received for file_id: {file_id}")
     try:
         # Validate ObjectId format
         try:
             object_id = ObjectId(file_id)
         except Exception:
+            logger.warning(f"Invalid file ID format: {file_id}")
             raise HTTPException(
                 status_code=400,
                 detail="Invalid file ID format"
             )
         
         # Get database and GridFS instance
+        logger.debug("Connecting to database")
         db, fs = get_database()
         
         # Check if file exists
         if not fs.exists(object_id):
+            logger.warning(f"File not found: {file_id}")
             raise HTTPException(
                 status_code=404,
                 detail="File not found"
@@ -130,11 +145,13 @@ async def stream_document(file_id: str):
         
         # Get file from GridFS
         grid_file = fs.get(object_id)
+        logger.debug(f"File retrieved: {grid_file.filename}, size: {grid_file.length} bytes")
         
         # Get filename and content type from metadata
         filename = grid_file.filename or "document.pdf"
         content_type = grid_file.content_type or "application/pdf"
         
+        logger.info(f"Streaming file: {filename}, content_type: {content_type}")
         # Create streaming response
         return StreamingResponse(
             generate_file_chunks(grid_file),
@@ -148,6 +165,7 @@ async def stream_document(file_id: str):
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error streaming file {file_id}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Error streaming file: {str(e)}"

@@ -24,22 +24,21 @@ export function SubmissionForm({
 	const isDisabled =
 		isSubmitting ||
 		isUploading ||
-		(!selectedFile && !selectedFileObject) ||
-		!projectSpecs.trim()
+		(!selectedFile && !selectedFileObject)
 
 	return (
 		<div className='bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700'>
 			<div className='p-4 border-b border-gray-200 dark:border-gray-700'>
-				<h2 className='text-lg font-semibold text-gray-900 dark:text-white'>Submit Document</h2>
+				<h2 className='text-lg font-semibold text-gray-900 dark:text-white'>Upload Document</h2>
 			</div>
 			<div className='p-4 space-y-4'>
 				{/* File Selection */}
 				<FileUpload selectedFile={selectedFileObject} onFileSelect={onFileSelect} />
 
-				{/* Project Specifications */}
+				{/* Project Specifications (Optional) */}
 				<div>
 					<label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-						Project Specifications
+						Project Specifications (Optional)
 					</label>
 					<textarea
 						value={projectSpecs}
@@ -56,7 +55,7 @@ export function SubmissionForm({
 					disabled={isDisabled}
 					className='w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-4 py-2 rounded-md text-sm font-medium transition-colors'
 				>
-					{isUploading ? 'Uploading...' : isSubmitting ? 'Submitting...' : 'Submit for Review'}
+					{isUploading ? 'Uploading...' : isSubmitting ? 'Submitting...' : 'Upload Document'}
 				</button>
 			</div>
 		</div>

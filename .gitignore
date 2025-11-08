@@ -1,2 +1,6 @@
 # Ignore all .env files anywhere in the repository
 **/.env
+
+makoto_creds.json
+__pycache__/
+.tanstack

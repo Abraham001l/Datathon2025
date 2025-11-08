@@ -57,7 +57,7 @@ export const apiService = {
 				formData.append('category', category)
 			}
 
-			const response = await fetch(`${API_BASE_URL}/upload/document`, {
+			const response = await fetch(`${API_BASE_URL}/parse/parse-pdf`, {
 				method: 'POST',
 				body: formData,
 			})
@@ -72,7 +72,7 @@ export const apiService = {
 			return {
 				status: 'success',
 				filepath: data.filename || file.name,
-				file_id: data.file_id,
+				file_id: data.pdf_file_id || data.file_id,
 				message: data.message,
 			}
 		} catch (error) {
