@@ -1,0 +1,2 @@
+Error saving state: [Errno 13] Permission denied: 'agent_workspace\\agent-H3Ev8jEUR6Z0yKUlskc4MEppThKwpJMU_state.json.temp'
+Error saving state: [Errno 13] Permission denied: 'agent_workspace\\agent-HObJfH4Bjn2qycTz9befvGB4t48aMYMb_state.json.temp'
