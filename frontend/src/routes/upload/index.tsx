@@ -1,69 +1,23 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
-import type { Submission, SubmissionWithFlags, Document } from './types'
+import { useState } from 'react'
 import { apiService } from './api'
 import { useToast } from './hooks/useToast'
 import { ToastContainer } from './components/ToastContainer'
-import { LoadingSpinner } from './components/LoadingSpinner'
 import { DashboardHeader } from './components/DashboardHeader'
 import { SubmissionForm } from './components/SubmissionForm'
-import { SubmissionsTable } from './components/SubmissionsTable'
-import { FlagDetailsModal } from './components/FlagDetailsModal'
 
 export const Route = createFileRoute('/upload/')({
 	component: UploadComponent,
 })
 
 function UploadComponent() {
-	const [submissions, setSubmissions] = useState<Submission[]>([])
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	const [documents, setDocuments] = useState<Document[]>([])
 	const [selectedFile, setSelectedFile] = useState<string>('')
 	const [selectedFileObject, setSelectedFileObject] = useState<File | null>(null)
 	const [projectSpecs, setProjectSpecs] = useState<string>('')
 	const [isSubmitting, setIsSubmitting] = useState(false)
 	const [isUploading, setIsUploading] = useState(false)
-	const [isLoading, setIsLoading] = useState(true)
-	const [selectedSubmission, setSelectedSubmission] = useState<SubmissionWithFlags | null>(null)
-	const [showFlagDetails, setShowFlagDetails] = useState(false)
 
 	const { toasts, removeToast, success, error } = useToast()
-
-	// Load initial data and set up auto-refresh
-	useEffect(() => {
-		setIsLoading(true)
-		loadData()
-
-		// Auto-refresh every 5 seconds to show real-time status updates
-		const interval = setInterval(() => {
-			loadData()
-		}, 5000)
-
-		return () => clearInterval(interval)
-	}, [])
-
-	const loadData = async () => {
-		console.log('🔄 Loading data...')
-		try {
-			const [submissionsResponse, documentsResponse] = await Promise.all([
-				apiService.getSubmissions(),
-				apiService.getDocuments(),
-			])
-
-			console.log('📊 Data loaded:', {
-				submissions: submissionsResponse?.length || 0,
-				documents: documentsResponse?.length || 0,
-			})
-
-			setSubmissions(submissionsResponse || [])
-			// TODO: Use documentsResponse when implementing document selection
-			setDocuments(documentsResponse || [])
-		} catch (error) {
-			console.error('❌ Failed to load data:', error)
-		} finally {
-			setIsLoading(false)
-		}
-	}
 
 	const handleSubmitDocument = async () => {
 		console.log('🚀 handleSubmitDocument called')
@@ -117,9 +71,6 @@ function UploadComponent() {
 				setSelectedFile('')
 				setSelectedFileObject(null)
 				setProjectSpecs('')
-
-				console.log('🔄 Refreshing data...')
-				await loadData() // Refresh submissions list
 			} else {
 				throw new Error(`Submission failed: ${response.message || 'Unknown error'}`)
 			}
@@ -142,26 +93,6 @@ function UploadComponent() {
 		} else {
 			setSelectedFileObject(null)
 		}
-	}
-
-	const viewSubmissionFlags = async (submission: Submission) => {
-		try {
-			const response = await apiService.getSubmissionFlags(submission.id)
-			setSelectedSubmission({
-				...submission,
-				aiFlags: response.ai_flags,
-				verifiedFlags: response.verified_flags,
-				notes: response.reviewer_notes,
-			})
-			setShowFlagDetails(true)
-		} catch (err) {
-			console.error('Failed to load flags:', err)
-			error('Failed to Load Flags', 'Failed to load flag details. Please try again.')
-		}
-	}
-
-	if (isLoading) {
-		return <LoadingSpinner />
 	}
 
 	return (
@@ -187,18 +118,16 @@ function UploadComponent() {
 
 					{/* Submissions Queue */}
 					<div className='lg:col-span-2'>
-						<SubmissionsTable submissions={submissions} onViewFlags={viewSubmissionFlags} />
+						{/* TODO: Implement submissions table */}
+						<div className='bg-white dark:bg-gray-800 rounded-lg shadow p-6'>
+							<h2 className='text-xl font-semibold mb-4'>Submissions Queue</h2>
+							<p className='text-gray-500 dark:text-gray-400'>TODO: Display submissions list here</p>
+						</div>
 					</div>
 				</div>
 			</div>
 
-			{/* Flag Details Modal */}
-			{showFlagDetails && selectedSubmission && (
-				<FlagDetailsModal
-					submission={selectedSubmission}
-					onClose={() => setShowFlagDetails(false)}
-				/>
-			)}
+			{/* TODO: Implement flag details modal */}
 		</div>
 	)
 }
