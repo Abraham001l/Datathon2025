@@ -1,9 +1,20 @@
 from pymongo import MongoClient
 import gridfs
+from pathlib import Path
+from dotenv import load_dotenv
+import os
+
+# Load .env file from backend folder (two folders up from tests)
+env_path = Path(__file__).parent.parent.parent / '.env'
+load_dotenv(env_path)
+
+# Get password from environment variable
+PASSWORD = os.getenv('MONGODB_PASS', '')
+print(PASSWORD)
 
 # 1. Connect to your Atlas Cluster
 # Get this string from your Atlas "Connect" dialog
-CONNECTION_STRING = "mongodb+srv://doc_ai_app:<YOUR_PASSWORD_HERE>@doc-ai-cluster.xxxx.mongodb.net/"
+CONNECTION_STRING = f"mongodb+srv://jado:{PASSWORD}@maincluster.7vhuca.mongodb.net/?appName=MainCluster"
 
 client = MongoClient(CONNECTION_STRING)
 
@@ -18,7 +29,7 @@ fs = gridfs.GridFS(db)
 # --- How to UPLOAD a File ---
 
 # 'rb' means 'read binary', which is essential for files
-with open('"C:\Users\jadot\Downloads\HitachiDS_Datathon_Challenges_Package\HitachiDS_Datathon_Challenges_Package\TC1_Sample_Public_Marketing_Document.pdf"', 'rb') as f:
+with open(r"C:\Users\jadot\Downloads\HitachiDS_Datathon_Challenges_Package\HitachiDS_Datathon_Challenges_Package\TC1_Sample_Public_Marketing_Document.pdf", 'rb') as f:
     
     # Put the file into GridFS
     # This returns the unique ID of the stored file
