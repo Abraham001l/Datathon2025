@@ -8,11 +8,41 @@ export interface WebViewerInstance {
       addEventListener: (event: string, callback: () => void) => void
       removeEventListener?: (event: string, callback: () => void) => void
     }
+    annotationManager?: {
+      addAnnotation: (annotation: unknown) => void
+      redrawAnnotation: (annotation: unknown) => void
+    }
+    Annotations?: {
+      RectangleAnnotation: new (options: {
+        X: number
+        Y: number
+        Width: number
+        Height: number
+        StrokeColor: unknown
+      }) => unknown
+      Color: new (r: number, g: number, b: number, a: number) => unknown
+    }
   }
   UI: {
     dispose: () => void
     ready?: () => Promise<void>
   }
+}
+
+const addAnnotation = (instance: WebViewerInstance) => {
+  const { annotationManager, Annotations } = instance.Core
+  if (!annotationManager || !Annotations) {
+    return
+  }
+  const rect = new Annotations.RectangleAnnotation({
+    X: 50,
+    Y: 50,
+    Width: 150,
+    Height: 50,
+    StrokeColor: new Annotations.Color(255, 0, 0, 1),
+  })
+  annotationManager.addAnnotation(rect)
+  annotationManager.redrawAnnotation(rect)
 }
 
 interface PDFViewerProps {
@@ -99,18 +129,18 @@ export function PDFViewer({
           'toolbarGroup-Share',
         ],
         initialDoc: '',
-        enableAnnotations: false,
+        enableAnnotations: true,
         enableMeasurement: false,
       },
       viewerElement
     )
-      .then((instance: WebViewerInstance) => {
-        webViewerInstance.current = instance
+      .then((instance) => {
+        webViewerInstance.current = instance as WebViewerInstance
         
         // Wait for UI to be ready, then hide header elements except zoom
-        const { UI } = instance
-        if (UI && typeof UI.ready === 'function') {
-          UI.ready().then(() => {
+        const { UI } = instance as WebViewerInstance
+        if (UI && typeof (UI as { ready?: () => Promise<void> }).ready === 'function') {
+          (UI as { ready: () => Promise<void> }).ready().then(() => {
             // Hide header elements except zoom controls using CSS
             const style = document.createElement('style')
             style.textContent = `
@@ -141,6 +171,8 @@ export function PDFViewer({
         isInitializing.current = false
         onErrorRef.current?.('Failed to initialize PDF viewer')
       })
+
+    
 
     // Cleanup function
     return () => {
@@ -243,6 +275,17 @@ export function PDFViewer({
           if (documentViewer.removeEventListener) {
             documentViewer.removeEventListener('documentLoaded', handleDocumentLoaded)
           }
+          
+          // Add test annotation after document is loaded
+          if (webViewerInstance.current?.Core?.annotationManager && webViewerInstance.current?.Core?.Annotations) {
+            try {
+              
+              addAnnotation(webViewerInstance.current)
+            } catch (err) {
+              console.error('Error adding test annotation:', err)
+            }
+          }
+          
           if (url && url.startsWith('blob:')) {
             URL.revokeObjectURL(url)
           }
