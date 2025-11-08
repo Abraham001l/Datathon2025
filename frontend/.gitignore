@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# PDFTron WebViewer (generated from node_modules)
+public/webviewer
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
