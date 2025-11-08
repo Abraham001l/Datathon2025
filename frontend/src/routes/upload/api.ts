@@ -9,9 +9,37 @@ export const apiService = {
 		// Placeholder - replace with actual API call when endpoint is created
 		return []
 	},
-	getDocuments: async (): Promise<Document[]> => {
-		// Placeholder - replace with actual API call when endpoint is created
-		return []
+	getDocuments: async (limit?: number, skip?: number): Promise<{ files: Document[]; count: number }> => {
+		try {
+			const params = new URLSearchParams()
+			if (limit !== undefined) {
+				params.append('limit', limit.toString())
+			}
+			if (skip !== undefined) {
+				params.append('skip', skip.toString())
+			}
+
+			const queryString = params.toString()
+			const url = `${API_BASE_URL}/view/document${queryString ? `?${queryString}` : ''}`
+
+			const response = await fetch(url, {
+				method: 'GET',
+			})
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch documents' }))
+				throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
+			}
+
+			const data = await response.json()
+			return {
+				files: data.files || [],
+				count: data.count || 0,
+			}
+		} catch (error) {
+			console.error('Error fetching documents:', error)
+			throw error
+		}
 	},
 	uploadDocument: async (
 		file: File,

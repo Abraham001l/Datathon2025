@@ -10,9 +10,17 @@ export type Submission = {
 }
 
 export type Document = {
-	id: string
+	file_id: string
 	filename: string
-	// Add other fields as needed
+	upload_date?: string
+	length?: number
+	content_type?: string
+	metadata?: {
+		description?: string
+		category?: string
+		status?: string
+		ai_classified_sensitivity?: string
+	}
 }
 
 export type Flag = {

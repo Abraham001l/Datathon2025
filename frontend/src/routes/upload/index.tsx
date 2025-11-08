@@ -1,10 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { apiService } from './api'
 import { useToast } from './hooks/useToast'
 import { ToastContainer } from './components/ToastContainer'
 import { DashboardHeader } from './components/DashboardHeader'
 import { SubmissionForm } from './components/SubmissionForm'
+import { DocumentsTable } from './components/DocumentsTable'
+import type { Document } from './types'
 
 export const Route = createFileRoute('/upload/')({
 	component: UploadComponent,
@@ -16,55 +18,59 @@ function UploadComponent() {
 	const [projectSpecs, setProjectSpecs] = useState<string>('')
 	const [isSubmitting, setIsSubmitting] = useState(false)
 	const [isUploading, setIsUploading] = useState(false)
+	const [documents, setDocuments] = useState<Document[]>([])
+	const [isLoadingDocuments, setIsLoadingDocuments] = useState(true)
 
 	const { toasts, removeToast, success, error } = useToast()
 
-	const handleSubmitDocument = async () => {
-		console.log('🚀 handleSubmitDocument called')
-		console.log('State check:', {
-			selectedFile,
-			selectedFileObject: selectedFileObject?.name,
-			projectSpecs: projectSpecs?.substring(0, 50) + '...',
-			isSubmitting,
-			isUploading,
-		})
+	// Fetch documents on component mount
+	useEffect(() => {
+		const fetchDocuments = async () => {
+			try {
+				setIsLoadingDocuments(true)
+				const response = await apiService.getDocuments(100) // Fetch up to 100 documents
+				setDocuments(response.files)
+			} catch (err) {
+				console.error('Failed to fetch documents:', err)
+				error('Failed to Load Documents', 'Could not fetch documents from the database')
+			} finally {
+				setIsLoadingDocuments(false)
+			}
+		}
 
+		fetchDocuments()
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [])
+
+	const handleSubmitDocument = async () => {
 		if ((!selectedFile && !selectedFileObject) || !projectSpecs.trim()) {
 			const errorMsg = 'Please select a file and provide project specifications'
-			console.log('❌ Validation failed:', errorMsg)
 			error('Validation Failed', errorMsg)
 			return
 		}
 
 		try {
 			setIsSubmitting(true)
-			console.log('📤 Starting submission process...')
 
 			let filepath = selectedFile
 
 			// If we have a file object, upload it first
 			if (selectedFileObject) {
-				console.log('📁 Uploading file:', selectedFileObject.name)
 				setIsUploading(true)
 
 				const uploadResponse = await apiService.uploadDocument(selectedFileObject)
-				console.log('📤 Upload response:', uploadResponse)
 
 				if (uploadResponse.status !== 'success') {
 					throw new Error(`File upload failed: ${uploadResponse.message || 'Unknown error'}`)
 				}
 				filepath = uploadResponse.filepath
-				console.log('✅ File uploaded to:', filepath)
 				setIsUploading(false)
 			}
 
-			console.log('📋 Submitting document for review...')
 			const response = await apiService.submitDocument(filepath, projectSpecs, '')
-			console.log('📋 Submit response:', response)
 
 			if (response.status === 'success') {
 				const successMsg = `Document submitted successfully! Submission ID: ${response.submission_id}`
-				console.log('🎉 Success:', successMsg)
 				success('Document Submitted', successMsg)
 
 				// Reset form
@@ -75,13 +81,12 @@ function UploadComponent() {
 				throw new Error(`Submission failed: ${response.message || 'Unknown error'}`)
 			}
 		} catch (err: unknown) {
-			console.error('❌ Failed to submit document:', err)
+			console.error('Failed to submit document:', err)
 			const errorMsg = `Failed to submit document: ${err instanceof Error ? err.message : String(err)}. Please try again.`
 			error('Submission Failed', errorMsg)
 		} finally {
 			setIsSubmitting(false)
 			setIsUploading(false)
-			console.log('✅ Submission process completed')
 		}
 	}
 
@@ -89,7 +94,6 @@ function UploadComponent() {
 		if (file) {
 			setSelectedFileObject(file)
 			setSelectedFile('') // Clear any pre-selected file
-			console.log('✅ File state updated:', file.name)
 		} else {
 			setSelectedFileObject(null)
 		}
@@ -116,13 +120,9 @@ function UploadComponent() {
 						/>
 					</div>
 
-					{/* Submissions Queue */}
+					{/* Documents Table */}
 					<div className='lg:col-span-2'>
-						{/* TODO: Implement submissions table */}
-						<div className='bg-white dark:bg-gray-800 rounded-lg shadow p-6'>
-							<h2 className='text-xl font-semibold mb-4'>Submissions Queue</h2>
-							<p className='text-gray-500 dark:text-gray-400'>TODO: Display submissions list here</p>
-						</div>
+						<DocumentsTable documents={documents} isLoading={isLoadingDocuments} />
 					</div>
 				</div>
 			</div>

@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes.upload import router as upload_router
+from routes.view import router as view_router
 
 app = FastAPI(
     title="Document Upload API",
@@ -19,6 +20,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(upload_router)
+app.include_router(view_router)
 
 
 @app.get("/")
