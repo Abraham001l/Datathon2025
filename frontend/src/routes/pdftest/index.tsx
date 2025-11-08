@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useCallback } from 'react'
-import { PDFViewer } from './components/PDFViewer'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { PDFViewer, type PDFViewerRef } from './components/PDFViewer'
 
 export const Route = createFileRoute('/pdftest/')({
   component: RouteComponent,
@@ -11,6 +11,24 @@ function RouteComponent() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentDocumentId, setCurrentDocumentId] = useState<string | null>(null)
+  const [annotationCoordinatesList, setAnnotationsCoordinatesList] = useState<{ startX: number; startY: number; endX: number; endY: number }[]>([])
+  const pdfViewerRef = useRef<PDFViewerRef>(null)
+
+  useEffect(() => {
+    setAnnotationsCoordinatesList([{ startX: 50, startY: 50, endX: 200, endY: 100 }, { startX: 100, startY: 100, endX: 300, endY: 200 }, { startX: 150, startY: 150, endX: 400, endY: 300 }])
+  }, [])
+
+  useEffect(() => {
+    annotationCoordinatesList.forEach((annotation) => {
+      pdfViewerRef.current?.addAnnotation(annotation.startX, annotation.startY, annotation.endX, annotation.endY)
+    })
+  }, [annotationCoordinatesList, pdfViewerRef])
+  
+  // Annotation coordinates
+  const [startX, setStartX] = useState('50')
+  const [startY, setStartY] = useState('50')
+  const [endX, setEndX] = useState('200')
+  const [endY, setEndY] = useState('100')
 
   const handleLoadDocument = () => {
     if (!documentId.trim()) {
@@ -70,6 +88,64 @@ function RouteComponent() {
           >
             {isLoading ? 'Loading...' : 'Load Document'}
           </button>
+          <button
+            onClick={() => {
+              setAnnotationsCoordinatesList([...annotationCoordinatesList, { startX: parseFloat(startX), startY: parseFloat(startY), endX: parseFloat(endX), endY: parseFloat(endY) }])
+            }}
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+          >
+            Add Test Annotation
+          </button>
+        </div>
+        <div className="mt-4 flex gap-4 items-end">
+          <div>
+            <label htmlFor="startX" className="block text-sm font-medium text-gray-700 mb-1">
+              Start X
+            </label>
+            <input
+              id="startX"
+              type="number"
+              value={startX}
+              onChange={(e) => setStartX(e.target.value)}
+              className="w-24 px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="startY" className="block text-sm font-medium text-gray-700 mb-1">
+              Start Y
+            </label>
+            <input
+              id="startY"
+              type="number"
+              value={startY}
+              onChange={(e) => setStartY(e.target.value)}
+              className="w-24 px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="endX" className="block text-sm font-medium text-gray-700 mb-1">
+              End X
+            </label>
+            <input
+              id="endX"
+              type="number"
+              value={endX}
+              onChange={(e) => setEndX(e.target.value)}
+              className="w-24 px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="endY" className="block text-sm font-medium text-gray-700 mb-1">
+              End Y
+            </label>
+            <input
+              id="endY"
+              type="number"
+              value={endY}
+              onChange={(e) => setEndY(e.target.value)}
+              className="w-24 px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            />
+          </div>
         </div>
         {error && (
           <div className="mt-2 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
@@ -78,6 +154,7 @@ function RouteComponent() {
         )}
       </div>
       <PDFViewer
+        ref={pdfViewerRef}
         documentId={currentDocumentId}
         onLoadStart={handleLoadStart}
         onLoadComplete={handleLoadComplete}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import WebViewer from '@pdftron/webviewer'
 
 export interface WebViewerInstance {
@@ -29,20 +29,31 @@ export interface WebViewerInstance {
   }
 }
 
-const addAnnotation = (instance: WebViewerInstance) => {
+const addAnnotation = (instance: WebViewerInstance, startX: number, startY: number, endX: number, endY: number) => {
   const { annotationManager, Annotations } = instance.Core
   if (!annotationManager || !Annotations) {
     return
   }
+  
+  // Calculate width and height from coordinates
+  const width = Math.abs(endX - startX)
+  const height = Math.abs(endY - startY)
+  const x = Math.min(startX, endX)
+  const y = Math.min(startY, endY)
+  
   const rect = new Annotations.RectangleAnnotation({
-    X: 50,
-    Y: 50,
-    Width: 150,
-    Height: 50,
+    X: x,
+    Y: y,
+    Width: width,
+    Height: height,
     StrokeColor: new Annotations.Color(255, 0, 0, 1),
   })
   annotationManager.addAnnotation(rect)
   annotationManager.redrawAnnotation(rect)
+}
+
+export interface PDFViewerRef {
+  addAnnotation: (startX: number, startY: number, endX: number, endY: number) => void
 }
 
 interface PDFViewerProps {
@@ -56,7 +67,7 @@ interface PDFViewerProps {
   className?: string
 }
 
-export function PDFViewer({
+export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
   documentUrl,
   documentId,
   apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
@@ -65,7 +76,7 @@ export function PDFViewer({
   onLoadComplete,
   onError,
   className = '',
-}: PDFViewerProps) {
+}, ref) => {
   const viewer = useRef<HTMLDivElement>(null)
   const webViewerInstance = useRef<WebViewerInstance | null>(null)
   const isInitializing = useRef(false)
@@ -82,6 +93,19 @@ export function PDFViewer({
     onLoadCompleteRef.current = onLoadComplete
     onErrorRef.current = onError
   }, [onLoadStart, onLoadComplete, onError])
+
+  // Expose methods via ref
+  useImperativeHandle(ref, () => ({
+    addAnnotation: (startX: number, startY: number, endX: number, endY: number) => {
+      if (webViewerInstance.current) {
+        try {
+          addAnnotation(webViewerInstance.current, startX, startY, endX, endY)
+        } catch (err) {
+          console.error('Error adding annotation:', err)
+        }
+      }
+    },
+  }), [])
 
   const PDFTRON_LICENSE_KEY = import.meta.env.VITE_PDFTRON_LICENSE_KEY || ''
 
@@ -276,16 +300,6 @@ export function PDFViewer({
             documentViewer.removeEventListener('documentLoaded', handleDocumentLoaded)
           }
           
-          // Add test annotation after document is loaded
-          if (webViewerInstance.current?.Core?.annotationManager && webViewerInstance.current?.Core?.Annotations) {
-            try {
-              
-              addAnnotation(webViewerInstance.current)
-            } catch (err) {
-              console.error('Error adding test annotation:', err)
-            }
-          }
-          
           if (url && url.startsWith('blob:')) {
             URL.revokeObjectURL(url)
           }
@@ -320,5 +334,7 @@ export function PDFViewer({
   }, [documentUrl, documentId, apiBaseUrl, filename, isReady])
 
   return <div ref={viewer} className={className}></div>
-}
+})
+
+PDFViewer.displayName = 'PDFViewer'
 
