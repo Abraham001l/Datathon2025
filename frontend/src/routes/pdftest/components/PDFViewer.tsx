@@ -151,6 +151,23 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
           'toolbarGroup-Forms',
           'toolbarGroup-FillAndSign',
           'toolbarGroup-Share',
+          'annotationContentEditPopup',
+          'annotationStyleEditPopup',
+          'annotationNoteConnectorLine',
+          'annotationNoteConnectorEndpoint',
+          'annotationNoteText',
+          'annotationNoteState',
+          'annotationNoteReply',
+          'annotationNotePanel',
+          'annotationNoteReplyPanel',
+          'annotationNoteUnread',
+          'annotationNoteRead',
+          'annotationNoteExpand',
+          'annotationNoteCollapse',
+          'annotationNoteDelete',
+          'annotationNoteEdit',
+          'annotationNote',
+          'annotationNoteConnector',
         ],
         initialDoc: '',
         enableAnnotations: true,
@@ -165,7 +182,7 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
         const { UI } = instance as WebViewerInstance
         if (UI && typeof (UI as { ready?: () => Promise<void> }).ready === 'function') {
           (UI as { ready: () => Promise<void> }).ready().then(() => {
-            // Hide header elements except zoom controls using CSS
+            // Hide header elements except zoom controls and annotation controls using CSS
             const style = document.createElement('style')
             style.textContent = `
               [data-element="header"] > *:not([data-element="zoomControls"]):not([class*="Zoom"]) {
@@ -174,6 +191,26 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
               [data-element="header"] [data-element="menuButton"],
               [data-element="header"] [data-element="toolsHeader"],
               [data-element="header"] [data-element="toolsHeaderButton"] {
+                display: none !important;
+              }
+              /* Hide annotation controls */
+              [data-element*="annotation"],
+              [data-element*="Annotation"],
+              [class*="annotation"],
+              [class*="Annotation"],
+              .Annotation,
+              .annotation,
+              [data-element="annotationPopup"],
+              [data-element="annotationContentEditPopup"],
+              [data-element="annotationStyleEditPopup"],
+              [data-element="textPopup"],
+              [data-element="contextMenuPopup"],
+              .ToolbarGroup-Annotate,
+              .ToolbarGroup-Insert,
+              .ToolbarGroup-Shapes,
+              .ToolbarGroup-Edit,
+              .ToolbarGroup-Forms,
+              .ToolbarGroup-FillAndSign {
                 display: none !important;
               }
             `

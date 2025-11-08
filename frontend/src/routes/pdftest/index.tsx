@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useCallback, useRef, useEffect } from 'react'
-import { PDFViewer, type PDFViewerRef } from './components/PDFViewer'
+import { useState, useCallback, useEffect } from 'react'
+import { AnnotatedPDFViewer } from './components/AnnotatedPDFViewer'
 
 export const Route = createFileRoute('/pdftest/')({
   component: RouteComponent,
@@ -12,17 +12,10 @@ function RouteComponent() {
   const [error, setError] = useState<string | null>(null)
   const [currentDocumentId, setCurrentDocumentId] = useState<string | null>(null)
   const [annotationCoordinatesList, setAnnotationsCoordinatesList] = useState<{ startX: number; startY: number; endX: number; endY: number }[]>([])
-  const pdfViewerRef = useRef<PDFViewerRef>(null)
 
   useEffect(() => {
     setAnnotationsCoordinatesList([{ startX: 50, startY: 50, endX: 200, endY: 100 }, { startX: 100, startY: 100, endX: 300, endY: 200 }, { startX: 150, startY: 150, endX: 400, endY: 300 }])
   }, [])
-
-  useEffect(() => {
-    annotationCoordinatesList.forEach((annotation) => {
-      pdfViewerRef.current?.addAnnotation(annotation.startX, annotation.startY, annotation.endX, annotation.endY)
-    })
-  }, [annotationCoordinatesList, pdfViewerRef])
   
   // Annotation coordinates
   const [startX, setStartX] = useState('50')
@@ -153,9 +146,9 @@ function RouteComponent() {
           </div>
         )}
       </div>
-      <PDFViewer
-        ref={pdfViewerRef}
+      <AnnotatedPDFViewer
         documentId={currentDocumentId}
+        annotations={annotationCoordinatesList}
         onLoadStart={handleLoadStart}
         onLoadComplete={handleLoadComplete}
         onError={handleError}
