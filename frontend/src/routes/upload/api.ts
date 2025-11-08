@@ -1,27 +1,65 @@
 import type { Submission, Document, Flag } from './types'
 
-// TODO: Replace with your actual API service
+// API base URL - defaults to localhost:8000, can be overridden with environment variable
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+
 export const apiService = {
-	// TODO: Implement these methods
+	// TODO: Implement these methods when backend endpoints are available
 	getSubmissions: async (): Promise<Submission[]> => {
-		// Placeholder - replace with actual API call
+		// Placeholder - replace with actual API call when endpoint is created
 		return []
 	},
 	getDocuments: async (): Promise<Document[]> => {
-		// Placeholder - replace with actual API call
+		// Placeholder - replace with actual API call when endpoint is created
 		return []
 	},
-	uploadDocument: async (file: File): Promise<{ status: string; filepath: string; message?: string }> => {
-		// Placeholder - replace with actual API call
-		void file // Mark as intentionally unused
-		return { status: 'success', filepath: '' }
+	uploadDocument: async (
+		file: File,
+		description?: string,
+		category?: string
+	): Promise<{ status: string; filepath: string; file_id?: string; message?: string }> => {
+		try {
+			const formData = new FormData()
+			formData.append('file', file)
+			
+			if (description) {
+				formData.append('description', description)
+			}
+			if (category) {
+				formData.append('category', category)
+			}
+
+			const response = await fetch(`${API_BASE_URL}/upload/document`, {
+				method: 'POST',
+				body: formData,
+			})
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({ detail: 'Upload failed' }))
+				throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
+			}
+
+			const data = await response.json()
+			
+			return {
+				status: 'success',
+				filepath: data.filename || file.name,
+				file_id: data.file_id,
+				message: data.message,
+			}
+		} catch (error) {
+			console.error('Upload error:', error)
+			throw error
+		}
 	},
 	submitDocument: async (
 		filepath: string,
 		projectSpecs: string,
 		clearance: string
 	): Promise<{ status: string; submission_id?: string; message?: string }> => {
-		// Placeholder - replace with actual API call
+		// TODO: Create backend endpoint for document submission
+		// For now, this is a placeholder that simulates success
+		// In the future, this should call a POST /submissions endpoint
 		void filepath
 		void projectSpecs
 		void clearance
@@ -32,7 +70,8 @@ export const apiService = {
 		verified_flags: Flag[]
 		reviewer_notes?: string
 	}> => {
-		// Placeholder - replace with actual API call
+		// TODO: Create backend endpoint for getting submission flags
+		// Placeholder - replace with actual API call when endpoint is created
 		void submissionId
 		return { ai_flags: [], verified_flags: [] }
 	},
