@@ -12,38 +12,21 @@ logger = logging.getLogger(__name__)
 class VultrLLM:
     """Wrapper for Vultr LLM API."""
     
-    def __init__(self, api_key: str, model: str = "mistral-nemo-instruct-240"):
+    def __init__(self, api_key: str, model: str):
         self.api_key = api_key
         self.model = model
         self.url = "https://api.vultrinference.com/v1/chat/completions"
 
-    def generate_summary(self, text: str, max_tokens: int = 500) -> str:
-        """Generate a summary of the provided text."""
-        if not text or not text.strip():
-            return "No text content available for summary."
-        
-        # Truncate text if too long (limit to ~8000 chars to avoid token limits)
-        MAX_TEXT_LENGTH = 8000
-        if len(text) > MAX_TEXT_LENGTH:
-            text_to_summarize = text[:MAX_TEXT_LENGTH] + "\n\n[Document truncated for summarization]"
-        else:
-            text_to_summarize = text
-        
-        prompt = f"""Please provide a concise summary of the following document. Focus on the main topics, key points, and important information.
-
-Document text:
-{text_to_summarize}
-
-Summary:"""
-
+    def run(self, text: str) -> str:
+        """Run the LLM with the provided text."""
         data = {
             "model": self.model,
             "messages": [
-                {"role": "system", "content": "You are a helpful assistant that provides clear and concise document summaries."},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": text}
             ],
-            "temperature": 0.3,
-            "max_tokens": max_tokens
+            "temperature": 0.7,
+            "max_tokens": 512
         }
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -51,13 +34,37 @@ Summary:"""
         }
         
         try:
-            response = requests.post(self.url, headers=headers, json=data, timeout=30)
+            response = requests.post(self.url, headers=headers, json=data)
             response.raise_for_status()
-            summary = response.json()["choices"][0]["message"]["content"]
-            return summary.strip()
-        except Exception as e:
-            logger.error(f"Error generating summary with Vultr LLM: {str(e)}", exc_info=True)
+            out = response.json()["choices"][0]["message"]["content"]
+            return out
+        except requests.exceptions.HTTPError as e:
+            # Log the error response for debugging
+            if hasattr(e.response, 'text'):
+                logger.error(f"Vultr API error response: {e.response.text}")
+            if hasattr(e.response, 'json'):
+                try:
+                    error_detail = e.response.json()
+                    logger.error(f"Vultr API error details: {error_detail}")
+                except:
+                    pass
             raise
+
+    def generate_summary(self, text: str) -> str:
+        """Generate a summary of the provided text."""
+        if not text or not text.strip():
+            return "No text content available for summary."
+        
+        # Truncate text if too long (limit to avoid token limits)
+        MAX_TEXT_LENGTH = 8000
+        if len(text) > MAX_TEXT_LENGTH:
+            text_to_summarize = text[:MAX_TEXT_LENGTH] + "\n\n[Document truncated for summarization]"
+        else:
+            text_to_summarize = text
+        
+        prompt = f"Please provide a concise summary of the following document. Focus on the main topics, key points, and important information.\n\nDocument text:\n{text_to_summarize}\n\nSummary:"
+        
+        return self.run(prompt)
 
 
 def generate_document_summary(full_text: str) -> Optional[str]:
