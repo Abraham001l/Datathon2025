@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { type RectangleAnnotation } from '../../pdftest/components/AnnotatedPDFViewer'
+import { type RectangleAnnotation } from '../types'
 import { apiService } from '../../upload/api'
 import { convertImageCoordinates, createImageAnnotationId } from '../utils'
 

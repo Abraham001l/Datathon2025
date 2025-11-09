@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { type AnnotatedPDFViewerRef } from '../../pdftest/components/AnnotatedPDFViewer'
+import { type AnnotatedPDFViewerRef } from '../types'
 import { isImageAnnotation } from '../utils'
 
 /**

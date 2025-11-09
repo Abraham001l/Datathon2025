@@ -272,6 +272,10 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
           annotationManager.redrawAnnotation(annotation)
 
           if (annotationManager.jumpToAnnotation) {
+            // Extract annotation ID for logging
+            const ann = annotation as { Subject?: string; _id?: string }
+            const scrollToId = ann.Subject || ann._id || annotationId
+            console.log('Scrolling to annotation ID:', scrollToId)
             annotationManager.jumpToAnnotation(annotation)
           }
         }, 100)
@@ -773,7 +777,7 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
     }
 
     // Handle annotation selection event - this triggers the color change
-    const handleAnnotationSelected = (annotations: unknown[]) => {
+    const handleAnnotationSelected = (annotations: unknown[], action?: string) => {
       // If user is currently selecting text (mouse moved significantly), cancel annotation selection
       if (isSelectingTextRef.current) {
         // Cancel the selection immediately
@@ -804,6 +808,13 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
             // It's a real click, process the selection
             if (pendingAnnotationSelectionRef.current === annotations) {
               processAnnotationSelection(annotations)
+              // Jump to annotation when selected
+              if (action === 'selected' && annotations.length > 0 && annotationManager?.jumpToAnnotation) {
+                const ann = annotations[0] as { Subject?: string; _id?: string }
+                const annotationId = ann.Subject || ann._id || 'unknown'
+                console.log('Scrolling to annotation ID:', annotationId)
+                annotationManager.jumpToAnnotation(annotations[0])
+              }
             }
             pendingAnnotationSelectionRef.current = null
           }, 150)
@@ -814,6 +825,14 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
 
       // Process the selection normally
       processAnnotationSelection(annotations)
+      
+      // Jump to annotation when selected (as per user's example)
+      if (action === 'selected' && annotations.length > 0 && annotationManager?.jumpToAnnotation) {
+        const ann = annotations[0] as { Subject?: string; _id?: string }
+        const annotationId = ann.Subject || ann._id || 'unknown'
+        console.log('Scrolling to annotation ID:', annotationId)
+        annotationManager.jumpToAnnotation(annotations[0])
+      }
     }
 
     // Add event listener for annotationSelected event

@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { type RectangleAnnotation } from '../../pdftest/components/AnnotatedPDFViewer'
+import { type RectangleAnnotation } from '../types'
 
 /**
  * Hook for navigating between critical annotations (e.g., Highly Sensitive, Confidential, Unsafe).

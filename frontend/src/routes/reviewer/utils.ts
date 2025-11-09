@@ -1,4 +1,4 @@
-import { type RectangleAnnotation } from '../pdftest/components/AnnotatedPDFViewer'
+import { type RectangleAnnotation } from './types'
 
 // Constants
 export const REFERENCE_PAGE_WIDTH = 1758
