@@ -134,6 +134,10 @@ const addAnnotation = (instance: WebViewerInstance, startX: number, startY: numb
 
 export interface PDFViewerRef {
   addAnnotation: (startX: number, startY: number, endX: number, endY: number, pageNumber?: number, id?: string) => void
+  clearAnnotations: () => void
+  deselectAnnotations: () => void
+  hideAllAnnotations: () => void
+  showAllAnnotations: () => void
 }
 
 interface PDFViewerProps {
@@ -196,6 +200,103 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
           }
         } catch (err) {
           console.error('Error adding annotation:', err)
+        }
+      }
+    },
+    clearAnnotations: () => {
+      if (webViewerInstance.current) {
+        const { annotationManager } = webViewerInstance.current.Core
+        if (annotationManager) {
+          try {
+            // Delete all annotations from the set
+            const annotationsToDelete = Array.from(annotationsRef.current)
+            annotationsToDelete.forEach((annotation) => {
+              try {
+                if (annotation && typeof annotation === 'object') {
+                  const ann = annotation as { delete?: () => void }
+                  if (typeof ann.delete === 'function') {
+                    ann.delete()
+                  }
+                }
+              } catch (err) {
+                console.error('Error deleting annotation:', err)
+              }
+            })
+            annotationsRef.current.clear()
+            selectedAnnotationRef.current = null
+            annotationManager.deselectAllAnnotations()
+          } catch (err) {
+            console.error('Error clearing annotations:', err)
+          }
+        }
+      }
+    },
+    deselectAnnotations: () => {
+      if (webViewerInstance.current) {
+        const { annotationManager, Annotations } = webViewerInstance.current.Core
+        if (annotationManager && Annotations) {
+          try {
+            // Reset fill color for ALL annotations
+            annotationsRef.current.forEach((annotation) => {
+              try {
+                if (annotation && typeof annotation === 'object') {
+                  const ann = annotation as { FillColor?: unknown }
+                  ann.FillColor = new Annotations.Color(255, 0, 0, 0.01)
+                  annotationManager.redrawAnnotation(annotation)
+                }
+              } catch (err) {
+                console.error('Error resetting annotation fill:', err)
+              }
+            })
+            selectedAnnotationRef.current = null
+            annotationManager.deselectAllAnnotations()
+          } catch (err) {
+            console.error('Error deselecting annotations:', err)
+          }
+        }
+      }
+    },
+    hideAllAnnotations: () => {
+      if (webViewerInstance.current) {
+        const { annotationManager } = webViewerInstance.current.Core
+        if (annotationManager) {
+          try {
+            annotationsRef.current.forEach((annotation) => {
+              try {
+                if (annotation && typeof annotation === 'object') {
+                  const ann = annotation as { Hidden?: boolean }
+                  ann.Hidden = true
+                  annotationManager.redrawAnnotation(annotation)
+                }
+              } catch (err) {
+                console.error('Error hiding annotation:', err)
+              }
+            })
+          } catch (err) {
+            console.error('Error hiding annotations:', err)
+          }
+        }
+      }
+    },
+    showAllAnnotations: () => {
+      if (webViewerInstance.current) {
+        const { annotationManager } = webViewerInstance.current.Core
+        if (annotationManager) {
+          try {
+            annotationsRef.current.forEach((annotation) => {
+              try {
+                if (annotation && typeof annotation === 'object') {
+                  const ann = annotation as { Hidden?: boolean }
+                  ann.Hidden = false
+                  annotationManager.redrawAnnotation(annotation)
+                }
+              } catch (err) {
+                console.error('Error showing annotation:', err)
+              }
+            })
+          } catch (err) {
+            console.error('Error showing annotations:', err)
+          }
         }
       }
     },

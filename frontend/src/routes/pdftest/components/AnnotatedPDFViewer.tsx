@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import { PDFViewer, type PDFViewerRef } from './PDFViewer'
 
 export interface RectangleAnnotation {
@@ -8,6 +8,13 @@ export interface RectangleAnnotation {
   endY: number
   pageNumber?: number
   id?: string
+}
+
+export interface AnnotatedPDFViewerRef {
+  deselectAnnotations: () => void
+  clearAnnotations: () => void
+  hideAllAnnotations: () => void
+  showAllAnnotations: () => void
 }
 
 interface AnnotatedPDFViewerProps {
@@ -23,7 +30,7 @@ interface AnnotatedPDFViewerProps {
   className?: string
 }
 
-export const AnnotatedPDFViewer = ({
+export const AnnotatedPDFViewer = forwardRef<AnnotatedPDFViewerRef, AnnotatedPDFViewerProps>(({
   documentUrl,
   documentId,
   apiBaseUrl,
@@ -34,10 +41,33 @@ export const AnnotatedPDFViewer = ({
   onError,
   onAnnotationSelected,
   className,
-}: AnnotatedPDFViewerProps) => {
+}, ref) => {
   const pdfViewerRef = useRef<PDFViewerRef>(null)
   const [isDocumentLoaded, setIsDocumentLoaded] = useState(false)
   const previousDocumentRef = useRef<string | null>(null)
+
+  useImperativeHandle(ref, () => ({
+    deselectAnnotations: () => {
+      if (pdfViewerRef.current) {
+        pdfViewerRef.current.deselectAnnotations()
+      }
+    },
+    clearAnnotations: () => {
+      if (pdfViewerRef.current) {
+        pdfViewerRef.current.clearAnnotations()
+      }
+    },
+    hideAllAnnotations: () => {
+      if (pdfViewerRef.current) {
+        pdfViewerRef.current.hideAllAnnotations()
+      }
+    },
+    showAllAnnotations: () => {
+      if (pdfViewerRef.current) {
+        pdfViewerRef.current.showAllAnnotations()
+      }
+    },
+  }), [])
 
   // Track document changes to reset loaded state
   useEffect(() => {
@@ -48,9 +78,19 @@ export const AnnotatedPDFViewer = ({
     }
   }, [documentUrl, documentId])
 
-  // Add annotations when document is loaded
+  // Add annotations when document is loaded or annotations change
   useEffect(() => {
-    if (!isDocumentLoaded || !pdfViewerRef.current || annotations.length === 0) {
+    if (!isDocumentLoaded || !pdfViewerRef.current) {
+      return
+    }
+
+    // Clear existing annotations first
+    if (pdfViewerRef.current.clearAnnotations) {
+      pdfViewerRef.current.clearAnnotations()
+    }
+
+    // If no annotations, just return
+    if (annotations.length === 0) {
       return
     }
 
@@ -94,5 +134,7 @@ export const AnnotatedPDFViewer = ({
       className={className}
     />
   )
-}
+})
+
+AnnotatedPDFViewer.displayName = 'AnnotatedPDFViewer'
 

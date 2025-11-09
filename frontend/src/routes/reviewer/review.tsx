@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useState, useEffect, useRef } from 'react'
-import { AnnotatedPDFViewer, type RectangleAnnotation } from '../pdftest/components/AnnotatedPDFViewer'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { AnnotatedPDFViewer, type RectangleAnnotation, type AnnotatedPDFViewerRef } from '../pdftest/components/AnnotatedPDFViewer'
 import { apiService } from '../upload/api'
 import type { Document } from '../upload/types'
 
@@ -19,6 +19,15 @@ function ReviewComponent() {
   const [document, setDocument] = useState<Document | null>(null)
   const [allDocuments, setAllDocuments] = useState<Document[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [allBoundingBoxes, setAllBoundingBoxes] = useState<RectangleAnnotation[]>([])
+  const [allBoundingBoxData, setAllBoundingBoxData] = useState<Map<string, {
+    id: string
+    text: string
+    classification?: string
+    confidence?: string | number
+    explanation?: string
+    type: string
+  }>>(new Map())
   const [boundingBoxes, setBoundingBoxes] = useState<RectangleAnnotation[]>([])
   const [boundingBoxData, setBoundingBoxData] = useState<Map<string, {
     id: string
@@ -29,8 +38,9 @@ function ReviewComponent() {
     type: string
   }>>(new Map())
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'image' | 'text'>('image')
+  const [viewMode, setViewMode] = useState<'image' | 'text'>('text')
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pdfViewerRef = useRef<AnnotatedPDFViewerRef>(null)
 
   // Fetch document
   useEffect(() => {
@@ -65,6 +75,8 @@ function ReviewComponent() {
   // Fetch bounding boxes
   useEffect(() => {
     if (!docid) {
+      setAllBoundingBoxes([])
+      setAllBoundingBoxData(new Map())
       setBoundingBoxes([])
       setBoundingBoxData(new Map())
       setSelectedAnnotationId(null)
@@ -114,10 +126,12 @@ function ReviewComponent() {
           })
         })
 
-        setBoundingBoxes(annotations)
-        setBoundingBoxData(dataMap)
+        setAllBoundingBoxes(annotations)
+        setAllBoundingBoxData(dataMap)
       } catch (err) {
         console.error('Failed to fetch bounding boxes:', err)
+        setAllBoundingBoxes([])
+        setAllBoundingBoxData(new Map())
         setBoundingBoxes([])
         setBoundingBoxData(new Map())
       }
@@ -125,6 +139,69 @@ function ReviewComponent() {
 
     fetchBoundingBoxes()
   }, [docid])
+
+  // Filter text annotations (always keep them in viewer, just hide/show)
+  const textAnnotations = useMemo(() => {
+    return allBoundingBoxes.filter((annotation) => {
+      const data = allBoundingBoxData.get(annotation.id || '')
+      return data && (data.type === 'block' || data.type === 'text' || !data.type || data.type !== 'image')
+    })
+  }, [allBoundingBoxes, allBoundingBoxData])
+
+  // Update bounding boxes and data based on viewMode
+  useEffect(() => {
+    // Always keep text annotations in boundingBoxes (they stay in PDF viewer)
+    setBoundingBoxes(textAnnotations)
+    
+    if (viewMode === 'text') {
+      // Text mode: show annotation data in sidebar
+      const textDataMap = new Map<string, {
+        id: string
+        text: string
+        classification?: string
+        confidence?: string | number
+        explanation?: string
+        type: string
+      }>()
+      textAnnotations.forEach((annotation) => {
+        const data = allBoundingBoxData.get(annotation.id || '')
+        if (data) {
+          textDataMap.set(annotation.id || '', data)
+        }
+      })
+      setBoundingBoxData(textDataMap)
+    } else {
+      // Image mode: empty sidebar data
+      setBoundingBoxData(new Map())
+    }
+    // Clear selection when switching modes
+    setSelectedAnnotationId(null)
+  }, [viewMode, textAnnotations, allBoundingBoxData])
+
+  // Hide/show annotations when switching modes
+  useEffect(() => {
+    if (!pdfViewerRef.current) return
+
+    if (viewMode === 'image') {
+      // Hide all annotations when switching to image mode
+      // Delay to ensure annotations are added first
+      const timeoutId = setTimeout(() => {
+        if (pdfViewerRef.current && pdfViewerRef.current.hideAllAnnotations) {
+          pdfViewerRef.current.hideAllAnnotations()
+        }
+      }, 400)
+      return () => clearTimeout(timeoutId)
+    } else {
+      // Show all annotations when switching to text mode
+      // Delay to ensure annotations are added first
+      const timeoutId = setTimeout(() => {
+        if (pdfViewerRef.current && pdfViewerRef.current.showAllAnnotations) {
+          pdfViewerRef.current.showAllAnnotations()
+        }
+      }, 400)
+      return () => clearTimeout(timeoutId)
+    }
+  }, [viewMode])
 
   // Navigation helpers
   const currentIndex = allDocuments.findIndex((doc) => doc.file_id === docid)
@@ -206,6 +283,7 @@ function ReviewComponent() {
             )}
             {document && (
               <AnnotatedPDFViewer
+                ref={pdfViewerRef}
                 documentId={docid}
                 filename={document.filename}
                 apiBaseUrl={import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}
@@ -244,61 +322,81 @@ function ReviewComponent() {
               </button>
             </div>
           </div>
-          <div className="flex-1 overflow-auto p-6">
-            {selectedAnnotationId && boundingBoxData.has(selectedAnnotationId) ? (
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">Annotation ID</h3>
-                  <p className="text-sm text-gray-900">{selectedAnnotationId}</p>
-                </div>
-                {boundingBoxData.get(selectedAnnotationId)?.text && (
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Text</h3>
-                    <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded border">
-                      {boundingBoxData.get(selectedAnnotationId)?.text}
-                    </p>
+          <div className="flex-1 overflow-hidden relative">
+            {/* Sliding container */}
+            <div
+              className="flex h-full transition-transform duration-300 ease-in-out"
+              style={{
+                transform: viewMode === 'image' ? 'translateX(-100%)' : 'translateX(0%)',
+                width: '200%',
+              }}
+            >
+              {/* Text View */}
+              <div className="w-1/2 overflow-auto p-6">
+                {selectedAnnotationId && boundingBoxData.has(selectedAnnotationId) ? (
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-700 mb-2">Annotation ID</h3>
+                      <p className="text-sm text-gray-900">{selectedAnnotationId}</p>
+                    </div>
+                    {boundingBoxData.get(selectedAnnotationId)?.text && (
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-700 mb-2">Text</h3>
+                        <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded border">
+                          {boundingBoxData.get(selectedAnnotationId)?.text}
+                        </p>
+                      </div>
+                    )}
+                    {boundingBoxData.get(selectedAnnotationId)?.classification && (
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-700 mb-2">Classification</h3>
+                        <p className="text-sm text-gray-900">
+                          {boundingBoxData.get(selectedAnnotationId)?.classification}
+                        </p>
+                      </div>
+                    )}
+                    {boundingBoxData.get(selectedAnnotationId)?.confidence !== undefined && (
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-700 mb-2">Confidence</h3>
+                        <p className="text-sm text-gray-900">
+                          {(() => {
+                            const confidence = boundingBoxData.get(selectedAnnotationId)?.confidence
+                            if (typeof confidence === 'number') {
+                              return `${(confidence * 100).toFixed(2)}%`
+                            }
+                            return confidence?.toString() || ''
+                          })()}
+                        </p>
+                      </div>
+                    )}
+                    {boundingBoxData.get(selectedAnnotationId)?.explanation && (
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-700 mb-2">Explanation</h3>
+                        <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded border">
+                          {boundingBoxData.get(selectedAnnotationId)?.explanation}
+                        </p>
+                      </div>
+                    )}
+                    {boundingBoxData.get(selectedAnnotationId)?.type && (
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-700 mb-2">Type</h3>
+                        <p className="text-sm text-gray-900">{boundingBoxData.get(selectedAnnotationId)?.type}</p>
+                      </div>
+                    )}
                   </div>
-                )}
-                {boundingBoxData.get(selectedAnnotationId)?.classification && (
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Classification</h3>
-                    <p className="text-sm text-gray-900">
-                      {boundingBoxData.get(selectedAnnotationId)?.classification}
-                    </p>
-                  </div>
-                )}
-                {boundingBoxData.get(selectedAnnotationId)?.confidence !== undefined && (
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Confidence</h3>
-                    <p className="text-sm text-gray-900">
-                      {(() => {
-                        const confidence = boundingBoxData.get(selectedAnnotationId)?.confidence
-                        if (typeof confidence === 'number') {
-                          return `${(confidence * 100).toFixed(2)}%`
-                        }
-                        return confidence?.toString() || ''
-                      })()}
-                    </p>
-                  </div>
-                )}
-                {boundingBoxData.get(selectedAnnotationId)?.explanation && (
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Explanation</h3>
-                    <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded border">
-                      {boundingBoxData.get(selectedAnnotationId)?.explanation}
-                    </p>
-                  </div>
-                )}
-                {boundingBoxData.get(selectedAnnotationId)?.type && (
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Type</h3>
-                    <p className="text-sm text-gray-900">{boundingBoxData.get(selectedAnnotationId)?.type}</p>
-                  </div>
+                ) : (
+                  <p className="text-gray-500 text-center">Select an annotation to view details</p>
                 )}
               </div>
-            ) : (
-              <p className="text-gray-500 text-center">Select an annotation to view details</p>
-            )}
+
+              {/* Image View - Blank for now */}
+              <div className="w-1/2 overflow-auto p-6">
+                <div className="text-center text-gray-500">
+                  <p>Image annotations view</p>
+                  <p className="text-sm mt-2">Content will be populated here</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
