@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from vultr_llm_top import Vultr_LLM
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class ToP_Agent:
     def __init__(self):
@@ -69,6 +70,25 @@ Explanation: ..."""
     def human_chain_remove(self, tree_index, chain_index):
         self.tree[tree_index].pop(chain_index)
 
+    def run_doc(self, blocks):
+        block_results = []
+        print("about to go")
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            # Submitting blocks to executors
+            future_to_block = {executor.submit(self.run, block): block for block in blocks}
+
+            # Collect responses as they complete
+            for future in as_completed(future_to_block):
+                block = future_to_block[future]
+                try:
+                    response = future.result()
+                    block_results.append(response)
+                except Exception as e:
+                    print(f"Prompt failed: {block}, Error: {e}")
+        print("finished")
+        return block_results
+                    
+
     def run(self, text):
         results = []
         classification = self.pick_chain(text, results)
@@ -81,6 +101,31 @@ Explanation: ..."""
         
         return data
         
+    # def run_chain(self, old_text, classification, results):
+
+    #     with ThreadPoolExecutor(max_workers=5) as executor:
+    #         # Submitting prompts to executors
+    #         future_to_prompt = {executor.submit(self.vultr_llm.run, "Text:\n"+old_text+"\n"+prompt): prompt for prompt in self.tree[classification][:-1]}
+
+    #         # Collect responses as they complete
+    #         n_prompts = 0
+    #         for future in as_completed(future_to_prompt):
+    #             prompt = future_to_prompt[future]
+    #             try:
+    #                 response = future.result()
+    #                 results.append([prompt, response])
+    #             except Exception as e:
+    #                 print(f"Prompt failed: {prompt}, Error: {e}")
+    #             n_prompts += 1
+        
+    #     prompt = ""
+    #     for i in range(n_prompts):
+    #         prompt += results[-1-i][0]+"\n"+results[-1-i][1]+"\n"
+    #     prompt += self.tree[classification][-1]
+
+    #     response = self.vultr_llm.run(prompt)
+    #     results.append([self.tree[classification][-1], response])
+
     def run_chain(self, index, old_conversation, classification, results):
         prompt = f"""{old_conversation}
         
@@ -119,8 +164,34 @@ New Task:
     
 
 top_agent = ToP_Agent()
-top_agent.run(""" Kind of position or job for which you are applying (give the job title or job announcement number)
+doc = [
+"""Kind of position or job for which you are applying (give the job title or job announcement number)
  Customer Service Representative
  2.   Other positions for which you would like to be considered      Loan Officer or New Account Representative
  3.   Name (Last, First, Middle)   Simmons, Susan J.
- 4.   Street address   (No P.O. Box Numbers) 127 Blackrock Drive""")
+ 4.   Street address   (No P.O. Box Numbers) 127 Blackrock Drive""",
+""" 5.   Apartment number        #105
+ 6.   City Anytown 7.   State  Virginia 8.   Zip          99999
+ 9.  If mailing address is different, provide address  P.O. Box 199, Anytown, VA 99999 10.   E-mail address         Susan123@aol.com
+ 11.  Telephone number (999) 555-0010 12.   Cell phone number  (999) 555-9919
+ 13.  Have you ever been employed by this company?                 G  Yes           :  No     
+       If yes,  provide dates of employment:   From:   Month _________        Yr ___________   to        Month ________________   Yr_______________""",
+"""What starting salary would be acceptable to you? 
+ Per hour _Negotiable_________________  Per month  _________________
+ 15.  When would be the earliest date that you would be available to start work?
+ Month __March__________ Day___1st___________    Year __2011________
+ 16.  Are you available for: Yes No
+ Part-time work : G
+ To relocate G :
+ Overnight travel : G
+                                                   
+17.  Would you consider temporary work of:
+ Yes No
+ Less than 3 months G :
+ 3 - 6 months G :
+ 9 - 12 months : G
+ 18.  Hours preferred: No preference G or Start work at ________8 a.m._________________________    (enter time of day).
+       Days of the week: No preference : or Circle the days of the week that you prefer to work: 
+Sun          Mon          Tues          Wed          Thur          Fri          Sat"""
+]
+print(top_agent.run_doc(doc))
