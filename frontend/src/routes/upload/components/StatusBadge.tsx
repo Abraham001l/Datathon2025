@@ -6,6 +6,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
 	const statusConfig = {
 		in_queue: { color: 'bg-blue-100 text-blue-800', text: 'In Queue' },
 		in_review: { color: 'bg-yellow-100 text-yellow-800', text: 'In Review' },
+		pending_classification: { color: 'bg-blue-100 text-blue-800', text: 'Pending Classification' },
 		accepted: { color: 'bg-green-100 text-green-800', text: 'Accepted' },
 		rejected: { color: 'bg-red-100 text-red-800', text: 'Rejected' },
 	}
