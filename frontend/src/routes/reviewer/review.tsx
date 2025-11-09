@@ -177,7 +177,7 @@ function ReviewComponent() {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden bg-gray-50">
+    <div className="fixed top-0 left-0 right-0 bottom-0 flex flex-col overflow-hidden bg-gray-50">
       <div className="flex-1 flex overflow-hidden">
         {/* PDF Viewer */}
         <div className="flex-1 flex flex-col bg-white border-r border-gray-200 overflow-hidden">
