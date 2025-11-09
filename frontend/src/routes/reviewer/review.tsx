@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState, useEffect, useRef } from 'react'
-import { AnnotatedPDFViewer, type RectangleAnnotation } from '../pdftest/components/AnnotatedPDFViewer'
+import { AnnotatedPDFViewer, type RectangleAnnotation, type AnnotatedPDFViewerRef } from '../pdftest/components/AnnotatedPDFViewer'
 import { apiService } from '../upload/api'
 import type { Document } from '../upload/types'
 
@@ -17,7 +17,6 @@ function ReviewComponent() {
   const { docid } = Route.useSearch()
   const navigate = useNavigate()
   const [document, setDocument] = useState<Document | null>(null)
-  const [allDocuments, setAllDocuments] = useState<Document[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [boundingBoxes, setBoundingBoxes] = useState<RectangleAnnotation[]>([])
   const [boundingBoxData, setBoundingBoxData] = useState<Map<string, {
@@ -30,7 +29,9 @@ function ReviewComponent() {
   }>>(new Map())
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'image' | 'text'>('image')
+  const [currentBoxIndex, setCurrentBoxIndex] = useState<number>(-1)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pdfViewerRef = useRef<AnnotatedPDFViewerRef>(null)
 
   // Fetch document
   useEffect(() => {
@@ -49,7 +50,6 @@ function ReviewComponent() {
       try {
         setIsLoading(true)
         const response = await apiService.getDocuments(100)
-        setAllDocuments(response.files)
         const foundDoc = response.files.find((doc) => doc.file_id === docid)
         setDocument(foundDoc || null)
         // Keep loading true - will be set to false when PDF loads
@@ -68,6 +68,7 @@ function ReviewComponent() {
       setBoundingBoxes([])
       setBoundingBoxData(new Map())
       setSelectedAnnotationId(null)
+      setCurrentBoxIndex(-1)
       return
     }
 
@@ -126,22 +127,77 @@ function ReviewComponent() {
     fetchBoundingBoxes()
   }, [docid])
 
-  // Navigation helpers
-  const currentIndex = allDocuments.findIndex((doc) => doc.file_id === docid)
-  const previousDoc = currentIndex > 0 ? allDocuments[currentIndex - 1] : null
-  const nextDoc = currentIndex < allDocuments.length - 1 ? allDocuments[currentIndex + 1] : null
-
+  // Navigation helpers for bounding boxes
   const handlePrevious = () => {
-    if (previousDoc) {
-      navigate({ to: '/reviewer/review', search: { docid: previousDoc.file_id } })
+    if (boundingBoxes.length === 0) return
+    
+    let newIndex: number
+    if (currentBoxIndex <= 0) {
+      // Wrap to last box
+      newIndex = boundingBoxes.length - 1
+    } else {
+      newIndex = currentBoxIndex - 1
+    }
+    
+    setCurrentBoxIndex(newIndex)
+    const box = boundingBoxes[newIndex]
+    if (box?.id && pdfViewerRef.current) {
+      pdfViewerRef.current.selectAnnotationById(box.id)
+      setSelectedAnnotationId(box.id)
     }
   }
 
   const handleNext = () => {
-    if (nextDoc) {
-      navigate({ to: '/reviewer/review', search: { docid: nextDoc.file_id } })
+    if (boundingBoxes.length === 0) return
+    
+    let newIndex: number
+    if (currentBoxIndex >= boundingBoxes.length - 1) {
+      // Wrap to first box
+      newIndex = 0
+    } else {
+      newIndex = currentBoxIndex + 1
+    }
+    
+    setCurrentBoxIndex(newIndex)
+    const box = boundingBoxes[newIndex]
+    if (box?.id && pdfViewerRef.current) {
+      pdfViewerRef.current.selectAnnotationById(box.id)
+      setSelectedAnnotationId(box.id)
     }
   }
+
+  // Reset box index when bounding boxes change or document changes
+  useEffect(() => {
+    if (boundingBoxes.length > 0) {
+      // If no box is selected or current index is invalid, select first box
+      if (currentBoxIndex < 0 || currentBoxIndex >= boundingBoxes.length) {
+        setCurrentBoxIndex(0)
+        const firstBox = boundingBoxes[0]
+        if (firstBox && firstBox.id) {
+          // Wait for PDF to load before selecting
+          setTimeout(() => {
+            if (pdfViewerRef.current && firstBox.id) {
+              pdfViewerRef.current.selectAnnotationById(firstBox.id)
+              setSelectedAnnotationId(firstBox.id)
+            }
+          }, 1500)
+        }
+      }
+    } else {
+      setCurrentBoxIndex(-1)
+      setSelectedAnnotationId(null)
+    }
+  }, [boundingBoxes, docid])
+
+  // Update current index when annotation is selected manually
+  useEffect(() => {
+    if (selectedAnnotationId && boundingBoxes.length > 0) {
+      const index = boundingBoxes.findIndex(box => box.id === selectedAnnotationId)
+      if (index >= 0 && index !== currentBoxIndex) {
+        setCurrentBoxIndex(index)
+      }
+    }
+  }, [selectedAnnotationId, boundingBoxes, currentBoxIndex])
 
   const handlePDFLoadComplete = () => {
     // Keep loading visible for 3 seconds after PDF is fully loaded
@@ -206,6 +262,7 @@ function ReviewComponent() {
             )}
             {document && (
               <AnnotatedPDFViewer
+                ref={pdfViewerRef}
                 documentId={docid}
                 filename={document.filename}
                 apiBaseUrl={import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}
@@ -219,6 +276,7 @@ function ReviewComponent() {
 
         {/* Sidebar */}
         <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
+          {/* Text/Image Selector - Top of Sidebar */}
           <div className="p-4 border-b border-gray-200">
             <div className="relative bg-gray-100 rounded-lg p-1 flex">
               <div
@@ -244,13 +302,43 @@ function ReviewComponent() {
               </button>
             </div>
           </div>
+
+          {/* Progress Bar */}
+          <div className="p-4">
+            <div className="relative w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+              {boundingBoxes.length > 0 ? (
+                <div 
+                  className="absolute inset-y-0 left-0 bg-green-500 rounded-full transition-all duration-300"
+                  style={{ width: `${((currentBoxIndex >= 0 ? currentBoxIndex + 1 : 0) / boundingBoxes.length) * 100}%` }}
+                ></div>
+              ) : (
+                <div className="absolute inset-0 bg-green-500 rounded-full"></div>
+              )}
+            </div>
+            <p className="text-sm text-gray-700 mt-2">
+              {boundingBoxes.length > 0 && currentBoxIndex >= 0 
+                ? `${currentBoxIndex + 1} of ${boundingBoxes.length} reviewed`
+                : '0 of 0 reviewed'}
+            </p>
+          </div>
+
+          {/* Selection Header */}
+          <div className="px-6 pt-4 pb-4 border-b border-gray-200">
+            <h3 className="text-base font-semibold text-gray-900 mb-2">Selection</h3>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-bold text-gray-900">
+                {currentBoxIndex >= 0 && boundingBoxes.length > 0 ? currentBoxIndex + 1 : 0}
+              </span>
+              <span className="text-3xl font-bold text-gray-900">/</span>
+              <span className="text-3xl font-bold text-gray-900">
+                {boundingBoxes.length > 0 ? boundingBoxes.length : 0}
+              </span>
+              <span className="text-base font-normal text-gray-700 ml-1">boxes</span>
+            </div>
+          </div>
           <div className="flex-1 overflow-auto p-6">
             {selectedAnnotationId && boundingBoxData.has(selectedAnnotationId) ? (
               <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">Annotation ID</h3>
-                  <p className="text-sm text-gray-900">{selectedAnnotationId}</p>
-                </div>
                 {boundingBoxData.get(selectedAnnotationId)?.text && (
                   <div>
                     <h3 className="text-sm font-medium text-gray-700 mb-2">Text</h3>
@@ -308,26 +396,26 @@ function ReviewComponent() {
         <div className="flex items-center gap-4">
           <h2 className="text-lg font-semibold">{document?.filename || 'Document Viewer'}</h2>
           <p className="text-sm text-gray-500">File ID: {document?.file_id || docid}</p>
-          {allDocuments.length > 0 && currentIndex >= 0 && (
+          {boundingBoxes.length > 0 && currentBoxIndex >= 0 && (
             <p className="text-sm text-gray-500">
-              Document {currentIndex + 1}/{allDocuments.length}
+              Box {currentBoxIndex + 1}/{boundingBoxes.length}
             </p>
           )}
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={handlePrevious}
-            disabled={!previousDoc || isLoading}
+            disabled={boundingBoxes.length === 0 || isLoading}
             className="px-4 py-2 text-sm font-medium rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Previous
+            Previous Box
           </button>
           <button
             onClick={handleNext}
-            disabled={!nextDoc || isLoading}
+            disabled={boundingBoxes.length === 0 || isLoading}
             className="px-4 py-2 text-sm font-medium rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Next
+            Next Box
           </button>
           <button
             onClick={() => navigate({ to: '/reviewer/queue' })}

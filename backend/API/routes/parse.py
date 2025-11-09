@@ -360,7 +360,9 @@ def upload_image_bounding_boxes(
                 'total_images': len(stored_images),
                 'images_with_bbox': sum(1 for img in stored_images if img.get('bounding_box')),
                 'images_classified': sum(1 for img in stored_images if img.get('safe_search') and not img.get('safe_search', {}).get('error'))
-            }
+            },
+            'status': 'pending_classification',
+            'ai_classified_sensitivity': 'none'
         }
         
         logger.debug("Storing image bounding boxes in MongoDB collection")

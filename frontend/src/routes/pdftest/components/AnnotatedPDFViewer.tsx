@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import { PDFViewer, type PDFViewerRef } from './PDFViewer'
 
 export interface RectangleAnnotation {
@@ -8,6 +8,11 @@ export interface RectangleAnnotation {
   endY: number
   pageNumber?: number
   id?: string
+}
+
+export interface AnnotatedPDFViewerRef {
+  selectAnnotationById: (annotationId: string) => void
+  scrollToPage: (pageNumber: number) => void
 }
 
 interface AnnotatedPDFViewerProps {
@@ -23,7 +28,7 @@ interface AnnotatedPDFViewerProps {
   className?: string
 }
 
-export const AnnotatedPDFViewer = ({
+export const AnnotatedPDFViewer = forwardRef<AnnotatedPDFViewerRef, AnnotatedPDFViewerProps>(({
   documentUrl,
   documentId,
   apiBaseUrl,
@@ -34,7 +39,7 @@ export const AnnotatedPDFViewer = ({
   onError,
   onAnnotationSelected,
   className,
-}: AnnotatedPDFViewerProps) => {
+}, ref) => {
   const pdfViewerRef = useRef<PDFViewerRef>(null)
   const [isDocumentLoaded, setIsDocumentLoaded] = useState(false)
   const previousDocumentRef = useRef<string | null>(null)
@@ -75,6 +80,16 @@ export const AnnotatedPDFViewer = ({
     }
   }, [isDocumentLoaded, annotations])
 
+  // Expose methods via ref
+  useImperativeHandle(ref, () => ({
+    selectAnnotationById: (annotationId: string) => {
+      pdfViewerRef.current?.selectAnnotationById(annotationId)
+    },
+    scrollToPage: (pageNumber: number) => {
+      pdfViewerRef.current?.scrollToPage(pageNumber)
+    },
+  }), [])
+
   const handleLoadComplete = () => {
     setIsDocumentLoaded(true)
     onLoadComplete?.()
@@ -94,5 +109,7 @@ export const AnnotatedPDFViewer = ({
       className={className}
     />
   )
-}
+})
+
+AnnotatedPDFViewer.displayName = 'AnnotatedPDFViewer'
 

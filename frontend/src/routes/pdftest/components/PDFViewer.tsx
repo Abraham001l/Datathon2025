@@ -10,6 +10,8 @@ export interface WebViewerInstance {
       getDocument?: () => {
         getPageInfo?: (pageNum: number) => { width: number; height: number } | null
       } | null
+      setCurrentPage?: (pageNumber: number, isSmoothScroll?: boolean) => void
+      getCurrentPage?: () => number
     }
     annotationManager?: {
       addAnnotation: (annotation: unknown) => void
@@ -17,7 +19,10 @@ export interface WebViewerInstance {
       addEventListener: (event: string, callback: (annotations: unknown[], action?: string) => void) => void
       removeEventListener?: (event: string, callback: (annotations: unknown[], action?: string) => void) => void
       deselectAllAnnotations: () => void
+      selectAnnotation?: (annotation: unknown) => void
+      setSelectedAnnotations?: (annotations: unknown[]) => void
       bringAnnotationToFront?: (annotation: unknown) => void
+      getAnnotationsList?: () => unknown[]
     }
     Annotations?: {
       RectangleAnnotation: new (options: {
@@ -65,10 +70,13 @@ const addAnnotation = (instance: WebViewerInstance, startX: number, startY: numb
   const scaleX = actualPageWidth / 1758
   const scaleY = actualPageHeight / 2275
   
-  const x = Math.min(startX, endX) * scaleX
-  const y = Math.min(startY, endY) * scaleY
-  const width = Math.abs(endX - startX) * scaleX
-  const height = Math.abs(endY - startY) * scaleY
+  // Add padding to bounding boxes (5 pixels in reference coordinate system)
+  const padding = 5
+  
+  const x = (Math.min(startX, endX) - padding) * scaleX
+  const y = (Math.min(startY, endY) - padding) * scaleY
+  const width = (Math.abs(endX - startX) + 2 * padding) * scaleX
+  const height = (Math.abs(endY - startY) + 2 * padding) * scaleY
   
   const rect = new Annotations.RectangleAnnotation({
     X: x,
@@ -134,6 +142,8 @@ const addAnnotation = (instance: WebViewerInstance, startX: number, startY: numb
 
 export interface PDFViewerRef {
   addAnnotation: (startX: number, startY: number, endX: number, endY: number, pageNumber?: number, id?: string) => void
+  selectAnnotationById: (annotationId: string) => void
+  scrollToPage: (pageNumber: number) => void
 }
 
 interface PDFViewerProps {
@@ -164,6 +174,7 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
   const isInitializing = useRef(false)
   const [isReady, setIsReady] = useState(false)
   const annotationsRef = useRef<Set<unknown>>(new Set())
+  const annotationsByIdRef = useRef<Map<string, unknown>>(new Map())
   const selectedAnnotationRef = useRef<unknown | null>(null)
 
   // Store callbacks in refs to avoid dependency issues
@@ -190,13 +201,80 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
             annotationsRef.current.add(annotation)
             // Store the ID mapping
             if (id && annotation && typeof annotation === 'object') {
-              const ann = annotation as { _id?: string }
+              const ann = annotation as { _id?: string; Subject?: string }
               ann._id = id
+              ann.Subject = id
+              annotationsByIdRef.current.set(id, annotation)
             }
           }
         } catch (err) {
           console.error('Error adding annotation:', err)
         }
+      }
+    },
+    selectAnnotationById: (annotationId: string) => {
+      if (!webViewerInstance.current) return
+      const { annotationManager, documentViewer } = webViewerInstance.current.Core
+      if (!annotationManager) return
+
+      const annotation = annotationsByIdRef.current.get(annotationId)
+      if (!annotation) {
+        console.warn('Annotation not found:', annotationId)
+        return
+      }
+
+      try {
+        // Get page number from annotation
+        const ann = annotation as { PageNumber?: number }
+        const pageNumber = ann.PageNumber || 1
+
+        // Scroll to the page first
+        if (documentViewer.setCurrentPage) {
+          documentViewer.setCurrentPage(pageNumber, true)
+        }
+
+        // Wait a bit for page to load, then select annotation
+        setTimeout(() => {
+          if (!annotationManager || !webViewerInstance.current) return
+
+          // Deselect all first
+          annotationManager.deselectAllAnnotations()
+          
+          // Select the annotation using setSelectedAnnotations (preferred) or selectAnnotation
+          if (annotationManager.setSelectedAnnotations) {
+            annotationManager.setSelectedAnnotations([annotation])
+          } else if (annotationManager.selectAnnotation) {
+            annotationManager.selectAnnotation(annotation)
+          } else {
+            // Fallback: try to bring to front and manually set selection
+            if (annotationManager.bringAnnotationToFront) {
+              annotationManager.bringAnnotationToFront(annotation)
+            }
+            // Manually trigger selection event by accessing internal state
+            // This is a fallback if the API methods don't work
+            console.warn('Annotation selection API not available, annotation may not be visually selected')
+          }
+
+          // Redraw to ensure selection is visible
+          annotationManager.redrawAnnotation(annotation)
+        }, 100)
+      } catch (err) {
+        console.error('Error selecting annotation:', err)
+      }
+    },
+    scrollToPage: (pageNumber: number) => {
+      if (!webViewerInstance.current) return
+      const { documentViewer } = webViewerInstance.current.Core
+      if (!documentViewer) return
+
+      try {
+        if (documentViewer.setCurrentPage) {
+          documentViewer.setCurrentPage(pageNumber, true)
+        } else {
+          console.warn('setCurrentPage method not available')
+        }
+      } catch (err) {
+        console.error('Error scrolling to page:', err)
       }
     },
   }), [])
@@ -273,7 +351,7 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
       viewerElement
     )
       .then((instance) => {
-        webViewerInstance.current = instance as WebViewerInstance
+        webViewerInstance.current = instance as unknown as WebViewerInstance
         instance.UI.setModularHeaders([]);
 
 
@@ -462,6 +540,7 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
 
     // Clear annotations when loading a new document
     annotationsRef.current.clear()
+    annotationsByIdRef.current.clear()
     selectedAnnotationRef.current = null
 
     const loadDocument = async () => {
