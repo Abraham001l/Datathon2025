@@ -76,7 +76,7 @@ const addAnnotation = (instance: WebViewerInstance, startX: number, startY: numb
     Width: width,
     Height: height,
     PageNumber: targetPage,
-    StrokeColor: new Annotations.Color(255, 0, 0, 1),
+    StrokeColor: new Annotations.Color(192, 192, 192, 1),
     // Use a very minimal fill (0.01 alpha) so the annotation captures clicks in the middle
     // This makes it clickable throughout the entire rectangle area, not just the edges
     FillColor: new Annotations.Color(255, 0, 0, 0.01),
