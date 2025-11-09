@@ -58,31 +58,6 @@ export function ImageAnnotationDetails({ annotationId, annotationData }: ImageAn
           <h3 className="text-sm font-medium text-gray-700 mb-2">XRef</h3>
           <p className="text-sm text-gray-900">{annotationData.xref}</p>
         </div>
-        <div>
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Safe Search Results</h3>
-          <div className="bg-gray-50 p-3 rounded border space-y-2">
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Adult:</span>
-              <span className="text-sm text-gray-900">{annotationData.safe_search.adult}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Spoof:</span>
-              <span className="text-sm text-gray-900">{annotationData.safe_search.spoof}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Medical:</span>
-              <span className="text-sm text-gray-900">{annotationData.safe_search.medical}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Violence:</span>
-              <span className="text-sm text-gray-900">{annotationData.safe_search.violence}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Racy:</span>
-              <span className="text-sm text-gray-900">{annotationData.safe_search.racy}</span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   )

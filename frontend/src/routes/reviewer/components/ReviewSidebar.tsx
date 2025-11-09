@@ -3,6 +3,7 @@ import { ProgressBar } from './ProgressBar'
 import { SelectionHeader } from './SelectionHeader'
 import { TextAnnotationDetails } from './TextAnnotationDetails'
 import { ImageAnnotationDetails } from './ImageAnnotationDetails'
+import { SafeSearchColorBars } from './SafeSearchColorBars'
 import { useEffect } from 'react'
 
 interface TextAnnotationData {
@@ -60,12 +61,21 @@ export function ReviewSidebar({
   useEffect(() => {
     console.log("thisImageAnnotationData", imageAnnotationsData.get(selectedImageAnnotationId || ''))
   }, [selectedImageAnnotationId, imageAnnotationsData])
+  const selectedImageData = selectedImageAnnotationId
+    ? imageAnnotationsData.get(selectedImageAnnotationId)
+    : undefined
+
   return (
     <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
       <ViewModeSelector viewMode={viewMode} onViewModeChange={onViewModeChange} />
       <ProgressBar currentIndex={currentIndex} totalCount={totalCount} />
+
+
       <SelectionHeader currentIndex={currentIndex} totalCount={totalCount} viewMode={viewMode} />
 
+      {viewMode === 'image' && (
+        <SafeSearchColorBars safeSearch={selectedImageData?.safe_search} />
+      )}
       <div className="flex-1 overflow-hidden relative">
         <div
           className="flex h-full transition-transform duration-300 ease-in-out"
