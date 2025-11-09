@@ -21,6 +21,9 @@ from services.pdf_utils import get_pdf_page_count, split_pdf, merge_extracted_da
 # LLM service
 from services.llm import generate_document_summary, VultrLLM
 
+# ToP Agent service
+from services.top_agent import get_top_agent, ToP_Agent
+
 __all__ = [
     # Database
     'get_database',
@@ -45,5 +48,8 @@ __all__ = [
     # LLM
     'generate_document_summary',
     'VultrLLM',
+    # ToP Agent
+    'get_top_agent',
+    'ToP_Agent',
 ]
 

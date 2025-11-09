@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from routes.view import router as view_router
 from routes.parse import router as parse_router
+from routes.top_agent import router as top_agent_router
 from services.database import verify_connection, close_database
 
 # Configure logging
@@ -64,6 +65,7 @@ app.add_middleware(
 # Include routers
 app.include_router(view_router)
 app.include_router(parse_router)
+app.include_router(top_agent_router)
 
 
 @app.middleware("http")
