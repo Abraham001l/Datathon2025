@@ -1,6 +1,7 @@
+"""Document parser service for extracting text and bounding boxes from Document AI responses."""
 from typing import List, Dict, Any
-
 from google.cloud import documentai
+
 
 def extract_text_with_boxes(document: documentai.Document) -> Dict[str, Any]:
     """Extract text and bounding boxes from Document AI response.
@@ -119,3 +120,4 @@ def get_bounding_box(bounding_poly: documentai.BoundingPoly) -> Dict[str, List[D
         })
     
     return {'vertices': vertices}
+

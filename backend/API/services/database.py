@@ -1,10 +1,10 @@
+"""Database service for MongoDB connection management."""
 import logging
+import os
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 import gridfs
-from pathlib import Path
 from dotenv import load_dotenv
-import os
 
 load_dotenv()
 
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # Get credentials from environment variables
 MONGO_PASSWORD = os.getenv('MONGODB_PASS', '')
-MONGO_USERNAME = os.getenv('MONGODB_USER', '') 
+MONGO_USERNAME = os.getenv('MONGODB_USER', '')
 
 # Connection string
 CONNECTION_STRING = f"mongodb+srv://{MONGO_USERNAME}:{MONGO_PASSWORD}@maincluster.7vhuca.mongodb.net/?appName=MainCluster"
