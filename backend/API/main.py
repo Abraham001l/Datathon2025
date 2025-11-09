@@ -73,6 +73,7 @@ else:
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5174",
+        "http://144.202.16.27:5173/"
     ]
     
     # Also check for frontend origin from environment (useful for hosted deployments)
