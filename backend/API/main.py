@@ -74,6 +74,14 @@ else:
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5174",
     ]
+    
+    # Also check for frontend origin from environment (useful for hosted deployments)
+    FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "")
+    if FRONTEND_ORIGIN:
+        frontend_origin = FRONTEND_ORIGIN.strip()
+        if frontend_origin and frontend_origin not in allowed_origins:
+            allowed_origins.append(frontend_origin)
+            logger.info(f"Added frontend origin from environment: {frontend_origin}")
 
 logger.info(f"CORS configured with allowed origins: {allowed_origins}")
 
