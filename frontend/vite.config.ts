@@ -17,5 +17,11 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api/, ''), // This removes /api from the request
       },
     },
+  // Allow these hosts for dev server requests
+  host: true,
+  allowedHosts: [
+    'makoto.compare',
+    'www.makoto.compare',
+  ],
   },
 })
