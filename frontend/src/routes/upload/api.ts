@@ -109,11 +109,15 @@ export const apiService = {
 		page_number: number
 		text: string
 		bounding_boxes: Array<{
+			id?: string
 			text: string
 			bounding_box: {
 				vertices: Array<{ x: number; y: number }>
 			}
 			type: string
+			classification?: string
+			confidence?: string | number
+			explanation?: string
 		}>
 		dimensions?: Record<string, unknown>
 	}>> => {
