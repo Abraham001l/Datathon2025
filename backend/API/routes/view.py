@@ -5,6 +5,7 @@ from bson import ObjectId
 from typing import Optional
 import sys
 from pathlib import Path
+from pprint import pprint
 
 # Add parent directory to path to import database
 parent_dir = Path(__file__).parent.parent
@@ -171,3 +172,47 @@ async def stream_document(file_id: str):
             detail=f"Error streaming file: {str(e)}"
         )
 
+
+@router.get("/document/{file_id}/metadata")
+async def get_document_metadata(file_id: str):
+    """
+    Get document metadata from the bounding_boxes collection.
+    
+    - **file_id**: The MongoDB ObjectId of the document to get metadata for
+    """
+    logger.info(f"Get document metadata request received for file_id: {file_id}")
+    try:
+        # Validate ObjectId format
+        try:
+            object_id = ObjectId(file_id)
+        except Exception:
+            logger.warning(f"Invalid file ID format: {file_id}")
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid file ID format"
+            )
+        
+        # Get database connection
+        logger.debug("Connecting to database")
+        db, _ = get_database()
+        
+        # Search for document with matching _id in bounding_boxes collection
+        collection = db['bounding_boxes']
+
+        logger.info(f"Collections[0]: {collection.find()[0]['_id']}")
+        logger.info(f"Object ID: {object_id}")
+        for document in collection.find():
+            logger.info(f"Checking document: {document['_id']} with object ID: {object_id}")
+            if document['_id'] == object_id:
+                logger.info("Match")
+        
+        return metadata
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving document metadata for {file_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving document metadata: {str(e)}"
+        )
