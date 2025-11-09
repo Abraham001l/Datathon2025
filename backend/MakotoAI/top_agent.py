@@ -58,8 +58,19 @@ Explanation: ..."""
         ]
         self.tree = [self.sensitive_chain, self.confidential_chain, self.public_chain, self.unsafe_chain]
     
-    def ai_chain_edit(self, tree_index):
-        pass
+    def ai_chain_edit(self, tree_index, suggestion):
+        existing_prompts = "\n".join(self.tree[tree_index][:-1])
+
+        prompt = f"""Given these existing prompts for a category:
+{existing_prompts}
+
+Create a new prompt that addresses this suggestion:
+{suggestion}
+
+Output only the new prompt. Do not repeat the existing prompts."""
+        response = self.vultr_llm.run(prompt)
+        self.tree[tree_index].insert(-1, response)
+        return self.tree[tree_index]
 
     def human_chain_edit(self, tree_index, chain_index, new_text):
         self.tree[tree_index][chain_index] = new_text
@@ -167,4 +178,5 @@ doc = [
        Days of the week: No preference : or Circle the days of the week that you prefer to work: 
 Sun          Mon          Tues          Wed          Thur          Fri          Sat"""
 ]
-print(top_agent.run_doc(doc))
+# print(top_agent.run_doc(doc))
+print(top_agent.ai_chain_edit(0, "add detection for api keys"))
