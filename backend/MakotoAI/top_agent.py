@@ -81,8 +81,17 @@ Output only the new prompt. Do not repeat the existing prompts."""
     def human_chain_remove(self, tree_index, chain_index):
         self.tree[tree_index].pop(chain_index)
 
-    def run_doc(self, blocks):
+    def run_doc(self, blocks, summary=""):
         block_results = []
+        summary_prompt = f"""Here is the summary of the full document from which this chunk was taken:
+{summary}
+
+Text: """
+
+        # Adding summary to each block
+        for i in range(len(blocks)):
+            blocks[i] = summary_prompt+blocks[i]
+
         with ThreadPoolExecutor(max_workers=20) as executor:
             # Submitting blocks to executors
             future_to_block = {executor.submit(self.run, block): block for block in blocks}
@@ -98,10 +107,10 @@ Output only the new prompt. Do not repeat the existing prompts."""
         return block_results
                     
 
-    def run(self, text):
+    def run(self, context):
         results = []
-        classification = self.pick_chain(text, results)
-        self.run_chain(index=0, old_conversation=f"Text: {text}", classification=classification, results=results)
+        classification = self.pick_chain(context, results)
+        self.run_chain(index=0, old_conversation=context, classification=classification, results=results)
 
         data = {}
         for i in range(len(results)):
@@ -127,7 +136,7 @@ New Task:
         # Recursively running through chain
         self.run_chain(index+1, conversation, classification, results)
 
-    def pick_chain(self, text, results):
+    def pick_chain(self, context, results):
         prompt = f"""Classify the following text into the single most appropriate category:
 
         0 — Sensitive/Highly Sensitive: Contains PII (e.g., SSNs, account/credit card numbers) or proprietary schematics (e.g., defense or next-gen product designs).  
@@ -135,8 +144,7 @@ New Task:
         2 — Public: Marketing materials, public website content, or generic, non-sensitive information.  
         3 — Unsafe Content: Hate speech, exploitative, violent, criminal, political, or cyber-threat material.
 
-        Text:
-        {text}
+        {context}
 
         Format for output:
         Classification: 0, 1, 2, or 3
@@ -178,5 +186,5 @@ doc = [
        Days of the week: No preference : or Circle the days of the week that you prefer to work: 
 Sun          Mon          Tues          Wed          Thur          Fri          Sat"""
 ]
-# print(top_agent.run_doc(doc))
-print(top_agent.ai_chain_edit(0, "add detection for api keys"))
+print(top_agent.run_doc(doc))
+# print(top_agent.ai_chain_edit(0, "add detection for api keys"))
