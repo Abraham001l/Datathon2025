@@ -24,14 +24,14 @@ interface ImageAnnotationDetailsProps {
 export function ImageAnnotationDetails({ annotationId, annotationData }: ImageAnnotationDetailsProps) {
   if (!annotationId || !annotationData) {
     return (
-      <div className="w-80 shrink-0 overflow-auto p-6">
+      <div className="w-full h-full overflow-auto p-6">
         <p className="text-gray-500 text-center">Select an image annotation to view details</p>
       </div>
     )
   }
 
   return (
-    <div className="w-80 shrink-0 overflow-auto p-6">
+    <div className="w-full h-full overflow-auto p-6">
       <div className="space-y-4">
         <div>
           <h3 className="text-sm font-medium text-gray-700 mb-2">Image ID</h3>
