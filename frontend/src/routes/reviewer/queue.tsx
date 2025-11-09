@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
 import { apiService } from '../upload/api'
 import type { Document } from '../upload/types'
 import { StatusBadge } from '../upload/components/StatusBadge'
@@ -53,23 +54,43 @@ function QueueComponent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <motion.div
+      className="min-h-screen bg-gray-50"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
-        <div className="mb-6">
+        <motion.div
+          className="mb-6"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+        >
           <h1 className="text-3xl font-bold text-gray-900">Document Review Queue</h1>
           <p className="mt-1 text-sm text-gray-600">Click on a document to review and annotate</p>
-        </div>
+        </motion.div>
 
         {/* Document Queue Table */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <motion.div
+          className="bg-white rounded-lg shadow-sm border border-gray-200"
+          initial={{ opacity: 0, y: 20, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.4, delay: 0.2 }}
+        >
           <div className="p-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">
+            <motion.h2
+              className="text-lg font-semibold text-gray-900"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3, delay: 0.3 }}
+            >
               Document Queue
               <span className="ml-2 text-sm font-normal text-gray-500">
                 ({documents.length} {documents.length === 1 ? 'document' : 'documents'})
               </span>
-            </h2>
+            </motion.h2>
           </div>
 
           <div className="overflow-x-auto">
@@ -97,54 +118,100 @@ function QueueComponent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                      Loading documents...
-                    </td>
-                  </tr>
-                ) : documents.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                      No documents found in the queue.
-                    </td>
-                  </tr>
-                ) : (
-                  documents.map((doc) => (
-                    <tr
-                      key={doc.file_id}
-                      onClick={() => handleDocumentClick(doc)}
-                      className="hover:bg-blue-50 cursor-pointer transition-colors"
+                <AnimatePresence mode="popLayout">
+                  {isLoading ? (
+                    <motion.tr
+                      key="loading"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
                     >
-                      <td className="px-4 py-4 text-sm font-medium text-gray-900">
-                        {doc.filename || 'Unknown'}
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                        <motion.div
+                          className="flex flex-col items-center justify-center gap-3"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          <motion.div
+                            className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full"
+                            animate={{ rotate: 360 }}
+                            transition={{
+                              duration: 1,
+                              repeat: Infinity,
+                              ease: 'linear',
+                            }}
+                          />
+                          <span>Loading documents...</span>
+                        </motion.div>
                       </td>
-                      <td className="px-4 py-4 text-sm">
-                        <StatusBadge
-                          status={doc.metadata?.status || 'in_queue'}
-                        />
+                    </motion.tr>
+                  ) : documents.length === 0 ? (
+                    <motion.tr
+                      key="empty"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                        No documents found in the queue.
                       </td>
-                      <td className="px-4 py-4 text-sm text-gray-500">
-                        {formatDate(doc.upload_date)}
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-500">
-                        {formatFileSize(doc.length)}
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-500">
-                        {doc.metadata?.category || 'N/A'}
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-500">
-                        {doc.metadata?.ai_classified_sensitivity || 'N/A'}
-                      </td>
-                    </tr>
-                  ))
-                )}
+                    </motion.tr>
+                  ) : (
+                    documents.map((doc, index) => (
+                      <motion.tr
+                        key={doc.file_id}
+                        initial={{ opacity: 0, y: 10, backgroundColor: 'rgb(255 255 255)' }}
+                        animate={{ opacity: 1, y: 0, backgroundColor: 'rgb(255 255 255)' }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{
+                          duration: 0.3,
+                          delay: index * 0.03,
+                          ease: 'easeOut',
+                        }}
+                        onClick={() => handleDocumentClick(doc)}
+                        whileHover={{
+                          backgroundColor: 'rgb(239 246 255)',
+                          transition: { duration: 0.15, ease: 'easeOut' },
+                        }}
+                        className="cursor-pointer bg-white"
+                      >
+                        <td className="px-4 py-4 text-sm font-medium text-gray-900">
+                          {doc.filename || 'Unknown'}
+                        </td>
+                        <td className="px-4 py-4 text-sm">
+                          <motion.div
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ delay: index * 0.03 + 0.1 }}
+                          >
+                            <StatusBadge
+                              status={doc.metadata?.status || 'in_queue'}
+                            />
+                          </motion.div>
+                        </td>
+                        <td className="px-4 py-4 text-sm text-gray-500">
+                          {formatDate(doc.upload_date)}
+                        </td>
+                        <td className="px-4 py-4 text-sm text-gray-500">
+                          {formatFileSize(doc.length)}
+                        </td>
+                        <td className="px-4 py-4 text-sm text-gray-500">
+                          {doc.metadata?.category || 'N/A'}
+                        </td>
+                        <td className="px-4 py-4 text-sm text-gray-500">
+                          {doc.metadata?.ai_classified_sensitivity || 'N/A'}
+                        </td>
+                      </motion.tr>
+                    ))
+                  )}
+                </AnimatePresence>
               </tbody>
             </table>
           </div>
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   )
 }
 

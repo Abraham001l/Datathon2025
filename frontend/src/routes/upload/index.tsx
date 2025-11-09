@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
+import { motion } from 'motion/react'
 import { apiService } from './api'
 import { useToast } from './hooks/useToast'
 import { ToastContainer } from './components/ToastContainer'
@@ -180,31 +181,56 @@ function UploadComponent() {
 	}
 
 	return (
-		<div className='min-h-screen bg-gray-50'>
+		<motion.div
+			className='min-h-screen bg-gray-50'
+			initial={{ opacity: 0 }}
+			animate={{ opacity: 1 }}
+			transition={{ duration: 0.3 }}
+		>
 			<ToastContainer toasts={toasts} onClose={removeToast} />
 			<UploadProgressIndicator uploadingFiles={uploadingFiles} />
 			
 			<div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6'>
 				{/* Header */}
-				<div className='mb-6'>
+				<motion.div
+					className='mb-6'
+					initial={{ opacity: 0, y: -20 }}
+					animate={{ opacity: 1, y: 0 }}
+					transition={{ duration: 0.4, delay: 0.1 }}
+				>
 					<h1 className='text-3xl font-bold text-gray-900'>Documents in Database</h1>
 					<p className='mt-1 text-sm text-gray-600'>Upload and manage your documents</p>
-				</div>
+				</motion.div>
 
 				{/* Documents Table Card */}
-				<div className='bg-white rounded-lg shadow-sm border border-gray-200'>
+				<motion.div
+					className='bg-white rounded-lg shadow-sm border border-gray-200'
+					initial={{ opacity: 0, y: 20, scale: 0.98 }}
+					animate={{ opacity: 1, y: 0, scale: 1 }}
+					transition={{ duration: 0.4, delay: 0.2 }}
+				>
 					<div className='p-4 border-b border-gray-200'>
 						<div className='flex items-center justify-between'>
-							<h2 className='text-lg font-semibold text-gray-900'>
+							<motion.h2
+								className='text-lg font-semibold text-gray-900'
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								transition={{ duration: 0.3, delay: 0.3 }}
+							>
 								Documents
 								<span className='ml-2 text-sm font-normal text-gray-500'>
 									({documents.length} {documents.length === 1 ? 'document' : 'documents'})
 								</span>
-							</h2>
+							</motion.h2>
 							{!isLoadingDocuments && (
-								<button
+								<motion.button
 									onClick={handleUploadClick}
-									className='flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium'
+									className='flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium'
+									whileHover={{ scale: 1.05 }}
+									whileTap={{ scale: 0.95 }}
+									transition={{ duration: 0.2 }}
+									initial={{ opacity: 0, scale: 0.9 }}
+									animate={{ opacity: 1, scale: 1 }}
 								>
 									<svg
 										className='w-4 h-4'
@@ -220,7 +246,7 @@ function UploadComponent() {
 										/>
 									</svg>
 									Upload
-								</button>
+								</motion.button>
 							)}
 						</div>
 					</div>
@@ -231,7 +257,7 @@ function UploadComponent() {
 							isLoading={isLoadingDocuments}
 						/>
 					</div>
-				</div>
+				</motion.div>
 			</div>
 
 			{/* Upload Modal */}
@@ -246,6 +272,6 @@ function UploadComponent() {
 				onProjectSpecsChange={setProjectSpecs}
 				onSubmit={handleSubmitDocument}
 			/>
-		</div>
+		</motion.div>
 	)
 }
