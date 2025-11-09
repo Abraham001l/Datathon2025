@@ -1,7 +1,6 @@
 /**
  * Auto-detects the API base URL based on the current origin.
- * This handles cases where the frontend is hosted on a public IP
- * and needs to access the backend on the same IP.
+ * Uses Vite proxy (/api) when available, otherwise falls back to direct backend URL.
  */
 function getApiBaseUrl(): string {
 	// If explicitly set via environment variable, use that
@@ -13,7 +12,20 @@ function getApiBaseUrl(): string {
 		return url
 	}
 
-	// Auto-detect based on current origin
+	// Check if we should use the Vite proxy (in development or when proxy is configured)
+	// The proxy is configured in vite.config.ts to rewrite /api to the backend
+	const useProxy = import.meta.env.DEV || import.meta.env.VITE_USE_PROXY === 'true'
+	
+	if (useProxy) {
+		// Use relative path /api which will be proxied by Vite
+		const url = '/api'
+		if (typeof window !== 'undefined') {
+			console.log('[API Config] Using Vite proxy:', url)
+		}
+		return url
+	}
+
+	// Production: Auto-detect based on current origin
 	if (typeof window !== 'undefined') {
 		const origin = window.location.origin
 		
