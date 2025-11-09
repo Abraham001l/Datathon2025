@@ -110,45 +110,50 @@ function UploadComponent() {
 			const fileCount = filesToUpload.length
 			info('Uploading...', `Uploading ${fileCount} file${fileCount > 1 ? 's' : ''}...`)
 
-			// Upload all files in parallel
-			const uploadPromises = filesToUpload.map(async (file) => {
-				try {
-					const uploadResponse = await apiService.uploadDocument(file)
-					
-					// Update status to success
-					setUploadingFiles((prev) =>
-						prev.map((f) =>
-							f.filename === file.name
-								? { filename: file.name, status: 'success' as const }
-								: f
+			// Upload all files in parallel - create all promises immediately
+			// This ensures all requests are sent concurrently without waiting
+			const uploadPromises = filesToUpload.map((file) => {
+				// Start the upload immediately and handle response/errors
+				const uploadPromise = apiService.uploadDocument(file)
+					.then((uploadResponse) => {
+						// Update status to success
+						setUploadingFiles((prev) =>
+							prev.map((f) =>
+								f.filename === file.name
+									? { filename: file.name, status: 'success' as const }
+									: f
+							)
 						)
-					)
 
-					return {
-						filename: file.name,
-						success: uploadResponse.status === 'success',
-						error: uploadResponse.status !== 'success' ? uploadResponse.message : undefined,
-					}
-				} catch (err) {
-					// Update status to error
-					const errorMessage = err instanceof Error ? err.message : String(err)
-					setUploadingFiles((prev) =>
-						prev.map((f) =>
-							f.filename === file.name
-								? { filename: file.name, status: 'error' as const, error: errorMessage }
-								: f
+						return {
+							filename: file.name,
+							success: uploadResponse.status === 'success',
+							error: uploadResponse.status !== 'success' ? uploadResponse.message : undefined,
+						}
+					})
+					.catch((err) => {
+						// Update status to error
+						const errorMessage = err instanceof Error ? err.message : String(err)
+						setUploadingFiles((prev) =>
+							prev.map((f) =>
+								f.filename === file.name
+									? { filename: file.name, status: 'error' as const, error: errorMessage }
+									: f
+							)
 						)
-					)
 
-					return {
-						filename: file.name,
-						success: false,
-						error: errorMessage,
-					}
-				}
+						return {
+							filename: file.name,
+							success: false,
+							error: errorMessage,
+						}
+					})
+				
+				// Return the promise immediately (all requests start in parallel)
+				return uploadPromise
 			})
 
-			// Wait for all uploads to complete
+			// Wait for all uploads to complete (all requests are already in flight)
 			const uploadResults = await Promise.all(uploadPromises)
 
 			// Wait a bit for animations to complete before clearing

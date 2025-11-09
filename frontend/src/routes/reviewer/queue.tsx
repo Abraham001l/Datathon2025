@@ -59,13 +59,13 @@ function QueueComponent() {
   const queueDocuments = documents.filter(
     (doc) => {
       const status = doc.metadata?.status || ''
-      return status === 'pending_classification'
+      return status === 'pending_classification' || status === 'in_review'
     }
   )
   const finishedDocuments = documents.filter(
     (doc) => {
       const status = doc.metadata?.status || ''
-      return status !== 'pending_classification'
+      return status !== 'pending_classification' && status !== 'in_review'
     }
   )
 

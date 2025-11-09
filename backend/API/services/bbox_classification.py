@@ -2,6 +2,7 @@
 import logging
 import re
 from typing import List, Dict, Any, Optional
+from bson import ObjectId
 from services.database import get_database
 from services.top_agent import get_top_agent
 
@@ -210,6 +211,54 @@ def update_bounding_box_classifications(
             )
             if result.modified_count > 0:
                 logger.info(f"Updated {len(classifications)} bounding box classifications for pdf_file_id: {pdf_file_id}")
+                
+                # Update file status from "pending_classification" to "in_review" in GridFS
+                try:
+                    _, fs = get_database()
+                    # Convert pdf_file_id to ObjectId if it's a string
+                    try:
+                        file_object_id = ObjectId(pdf_file_id)
+                    except Exception:
+                        logger.warning(f"Invalid ObjectId format for pdf_file_id: {pdf_file_id}")
+                        # If conversion fails, try to find the file by filename from bounding_boxes document
+                        filename = document.get('filename')
+                        if filename:
+                            grid_file = fs.find_one({"filename": filename})
+                            if grid_file:
+                                file_object_id = grid_file._id
+                            else:
+                                logger.warning(f"Could not find GridFS file for pdf_file_id: {pdf_file_id}")
+                                return True  # Return True since bounding boxes were updated successfully
+                        else:
+                            logger.warning(f"Could not determine file_id for status update: {pdf_file_id}")
+                            return True  # Return True since bounding boxes were updated successfully
+                    
+                    # Update the file status in GridFS (only if current status is "pending_classification")
+                    files_collection = db['fs.files']
+                    
+                    # Check if file exists first
+                    file_doc = files_collection.find_one({'_id': file_object_id})
+                    if not file_doc:
+                        logger.warning(f"File not found in GridFS for pdf_file_id: {pdf_file_id}")
+                    else:
+                        current_status = file_doc.get('status')
+                        if current_status == 'pending_classification':
+                            status_update_result = files_collection.update_one(
+                                {'_id': file_object_id},
+                                {'$set': {'status': 'in_review'}}
+                            )
+                            if status_update_result.modified_count > 0:
+                                logger.info(f"Updated file status from 'pending_classification' to 'in_review' for pdf_file_id: {pdf_file_id}")
+                            else:
+                                logger.warning(f"Failed to update file status for pdf_file_id: {pdf_file_id}")
+                        else:
+                            logger.info(f"File status is '{current_status}' (not 'pending_classification') for pdf_file_id: {pdf_file_id}, skipping status update")
+                        
+                except Exception as status_error:
+                    logger.error(f"Error updating file status for pdf_file_id {pdf_file_id}: {str(status_error)}", exc_info=True)
+                    # Don't fail the whole operation if status update fails
+                    # The bounding boxes were successfully updated
+                
                 return True
             else:
                 logger.warning(f"No documents modified when updating classifications for pdf_file_id: {pdf_file_id}")
