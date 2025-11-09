@@ -46,7 +46,7 @@ function Home() {
 
           {/* Review Card */}
           <Link
-            to="/reviewer"
+            to="/reviewer/queue"
             className="group bg-white rounded-lg shadow-sm border border-gray-200 p-8 hover:shadow-md hover:border-green-300 transition-all duration-200"
           >
             <div className="flex flex-col items-center text-center">
