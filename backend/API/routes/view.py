@@ -7,11 +7,11 @@ import sys
 from pathlib import Path
 from pprint import pprint
 
-# Add parent directory to path to import database
+# Add parent directory to path to import services
 parent_dir = Path(__file__).parent.parent
 if str(parent_dir) not in sys.path:
     sys.path.insert(0, str(parent_dir))
-from database import get_database
+from services.database import get_database
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/view", tags=["view"])

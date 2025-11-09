@@ -1,8 +1,11 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { AnnotatedPDFViewer, type RectangleAnnotation, type AnnotatedPDFViewerRef } from '../pdftest/components/AnnotatedPDFViewer'
+import { type RectangleAnnotation, type AnnotatedPDFViewerRef } from '../pdftest/components/AnnotatedPDFViewer'
 import { apiService } from '../upload/api'
 import type { Document } from '../upload/types'
+import { ReviewSidebar } from './components/ReviewSidebar'
+import { BottomNavigationBar } from './components/BottomNavigationBar'
+import { PDFViewerContainer } from './components/PDFViewerContainer'
 
 export const Route = createFileRoute('/reviewer/review')({
   component: ReviewComponent,
@@ -28,6 +31,7 @@ interface ImageAnnotationData {
     violence: string
     racy: string
   }
+  classification?: string
 }
 
 function ReviewComponent() {
@@ -61,7 +65,17 @@ function ReviewComponent() {
   const [allImageAnnotationsData, setAllImageAnnotationsData] = useState<Map<string, ImageAnnotationData>>(new Map())
   const [imageAnnotationsData, setImageAnnotationsData] = useState<Map<string, ImageAnnotationData>>(new Map())
   const [selectedImageAnnotationId, setSelectedImageAnnotationId] = useState<string | null>(null)
+  const initializedRef = useRef<Set<string>>(new Set())
 
+
+  useEffect(() => {
+    console.log("selectedImageAnnotationId", selectedImageAnnotationId)
+  }, [selectedImageAnnotationId])
+
+  useEffect(() => {
+    console.log("imageAnnotationsData", allImageAnnotationsData)
+  }, [allImageAnnotationsData])
+  
   // Fetch document
   useEffect(() => {
     if (!docid) {
@@ -345,6 +359,41 @@ function ReviewComponent() {
     return viewMode === 'text' ? textAnnotations : allImageAnnotations
   }, [viewMode, textAnnotations, allImageAnnotations])
 
+  // Get list of critical annotation indices
+  const criticalAnnotationIndices = useMemo(() => {
+    return currentAnnotationsList
+      .map((annotation, index) => ({ annotation, index }))
+      .filter(({ annotation }) => {
+        if (!annotation.id) return false
+        
+        if (viewMode === 'text') {
+          const data = allBoundingBoxData.get(annotation.id)
+          if (!data) return false
+          const classification = data.classification
+          return (
+            classification === 'Highly Sensitive' ||
+            classification === 'Confidential' ||
+            classification === 'Unsafe' ||
+            classification === '' ||
+            !classification
+          )
+        } else {
+          // For image mode, check if classification exists and matches critical criteria
+          const data = allImageAnnotationsData.get(annotation.id)
+          if (!data) return false
+          const classification = data.classification
+          return (
+            classification === 'Highly Sensitive' ||
+            classification === 'Confidential' ||
+            classification === 'Unsafe' ||
+            classification === '' ||
+            !classification
+          )
+        }
+      })
+      .map(({ index }) => index)
+  }, [currentAnnotationsList, viewMode, allBoundingBoxData, allImageAnnotationsData])
+
   // Navigation helpers for bounding boxes
   const handlePrevious = () => {
     if (currentAnnotationsList.length === 0) return
@@ -396,11 +445,102 @@ function ReviewComponent() {
     }
   }
 
+  // Navigation helpers for critical annotations
+  const handlePreviousCritical = () => {
+    if (criticalAnnotationIndices.length === 0) return
+    
+    // Find the current critical index position
+    let currentCriticalIndex = criticalAnnotationIndices.findIndex(idx => idx === currentBoxIndex)
+    
+    // If current annotation is not critical, find the previous critical annotation
+    if (currentCriticalIndex < 0) {
+      // Find the last critical annotation before the current index
+      const previousCritical = criticalAnnotationIndices
+        .filter(idx => idx < currentBoxIndex)
+        .sort((a, b) => b - a)[0]
+      
+      if (previousCritical !== undefined) {
+        currentCriticalIndex = criticalAnnotationIndices.indexOf(previousCritical)
+      } else {
+        // No previous critical, wrap to last
+        currentCriticalIndex = criticalAnnotationIndices.length
+      }
+    }
+    
+    let targetIndex: number
+    if (currentCriticalIndex <= 0) {
+      // Wrap to last critical annotation
+      targetIndex = criticalAnnotationIndices[criticalAnnotationIndices.length - 1]
+    } else {
+      // Go to previous critical annotation
+      targetIndex = criticalAnnotationIndices[currentCriticalIndex - 1]
+    }
+    
+    setCurrentBoxIndex(targetIndex)
+    const box = currentAnnotationsList[targetIndex]
+    if (box?.id && pdfViewerRef.current) {
+      pdfViewerRef.current.selectAnnotationById(box.id)
+      if (viewMode === 'text') {
+        setSelectedAnnotationId(box.id)
+        setSelectedImageAnnotationId(null)
+      } else {
+        setSelectedImageAnnotationId(box.id)
+        setSelectedAnnotationId(null)
+      }
+    }
+  }
+
+  const handleNextCritical = () => {
+    if (criticalAnnotationIndices.length === 0) return
+    
+    // Find the current critical index position
+    let currentCriticalIndex = criticalAnnotationIndices.findIndex(idx => idx === currentBoxIndex)
+    
+    // If current annotation is not critical, find the next critical annotation
+    if (currentCriticalIndex < 0) {
+      // Find the first critical annotation after the current index
+      const nextCritical = criticalAnnotationIndices
+        .filter(idx => idx > currentBoxIndex)
+        .sort((a, b) => a - b)[0]
+      
+      if (nextCritical !== undefined) {
+        currentCriticalIndex = criticalAnnotationIndices.indexOf(nextCritical)
+      } else {
+        // No next critical, wrap to first
+        currentCriticalIndex = criticalAnnotationIndices.length - 1
+      }
+    }
+    
+    let targetIndex: number
+    if (currentCriticalIndex < 0 || currentCriticalIndex >= criticalAnnotationIndices.length - 1) {
+      // Wrap to first critical annotation
+      targetIndex = criticalAnnotationIndices[0]
+    } else {
+      // Go to next critical annotation
+      targetIndex = criticalAnnotationIndices[currentCriticalIndex + 1]
+    }
+    
+    setCurrentBoxIndex(targetIndex)
+    const box = currentAnnotationsList[targetIndex]
+    if (box?.id && pdfViewerRef.current) {
+      pdfViewerRef.current.selectAnnotationById(box.id)
+      if (viewMode === 'text') {
+        setSelectedAnnotationId(box.id)
+        setSelectedImageAnnotationId(null)
+      } else {
+        setSelectedImageAnnotationId(box.id)
+        setSelectedAnnotationId(null)
+      }
+    }
+  }
+
   // Reset box index when annotations change or document changes
   useEffect(() => {
+    const key = `${docid}-${viewMode}-${currentAnnotationsList.length}`
     if (currentAnnotationsList.length > 0) {
       // If no box is selected or current index is invalid, select first box
-      if (currentBoxIndex < 0 || currentBoxIndex >= currentAnnotationsList.length) {
+      if (!initializedRef.current.has(key) || currentBoxIndex < 0 || currentBoxIndex >= currentAnnotationsList.length) {
+        initializedRef.current.add(key)
         setCurrentBoxIndex(0)
         const firstBox = currentAnnotationsList[0]
         if (firstBox && firstBox.id) {
@@ -413,6 +553,7 @@ function ReviewComponent() {
                 setSelectedImageAnnotationId(null)
               } else {
                 setSelectedImageAnnotationId(firstBox.id)
+                console.log("selectedImageAnnotationId", firstBox.id)
                 setSelectedAnnotationId(null)
               }
             }
@@ -420,11 +561,12 @@ function ReviewComponent() {
         }
       }
     } else {
+      initializedRef.current.delete(key)
       setCurrentBoxIndex(-1)
       setSelectedAnnotationId(null)
       setSelectedImageAnnotationId(null)
     }
-  }, [currentAnnotationsList, docid, viewMode])
+  }, [currentAnnotationsList, docid, viewMode, currentBoxIndex])
 
   // Update current index when annotation is selected manually
   useEffect(() => {
@@ -471,316 +613,79 @@ function ReviewComponent() {
     )
   }
 
+  const handleAnnotationSelected = (id: string | null) => {
+    if (!id) {
+      setSelectedAnnotationId(null)
+      setSelectedImageAnnotationId(null)
+      return
+    }
+
+    // Check if it's an image annotation (starts with "img-")
+    const isImageAnnotation = id.startsWith('img-')
+
+    if (viewMode === 'text') {
+      // In text mode, only allow selecting text annotations
+      if (!isImageAnnotation) {
+        setSelectedAnnotationId(id)
+        setSelectedImageAnnotationId(null)
+      } else {
+        // Ignore image annotation selection in text mode
+        setSelectedAnnotationId(null)
+        setSelectedImageAnnotationId(null)
+      }
+    } else {
+      // In image mode, only allow selecting image annotations
+      if (isImageAnnotation) {
+        setSelectedImageAnnotationId(id)
+        setSelectedAnnotationId(null)
+      } else {
+        // Ignore text annotation selection in image mode
+        setSelectedAnnotationId(null)
+        setSelectedImageAnnotationId(null)
+      }
+    }
+  }
+
   return (
     <div className="fixed top-0 left-0 right-0 bottom-0 flex flex-col overflow-hidden bg-gray-50">
       <div className="flex-1 flex overflow-hidden">
-        {/* PDF Viewer */}
-        <div className="flex-1 flex flex-col bg-white border-r border-gray-200 overflow-hidden">
-          <div className="flex-1 overflow-auto relative">
-            {isLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-white z-10">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-                  <p className="text-gray-500 text-sm">Loading document...</p>
-                </div>
-              </div>
-            )}
-            {!isLoading && !document && (
-              <div className="absolute inset-0 flex items-center justify-center bg-white">
-                <div className="text-center">
-                  <p className="text-gray-500 mb-4">Document not found</p>
-                  <button
-                    onClick={() => navigate({ to: '/reviewer/queue' })}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                  >
-                    Go to Queue
-                  </button>
-                </div>
-              </div>
-            )}
-            {document && (
-              <AnnotatedPDFViewer
-                ref={pdfViewerRef}
-                documentId={docid}
-                filename={document.filename}
-                apiBaseUrl={import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}
-                onLoadComplete={handlePDFLoadComplete}
-                annotations={currentAnnotations}
-                onAnnotationSelected={(id) => {
-                  if (!id) {
-                    setSelectedAnnotationId(null)
-                    setSelectedImageAnnotationId(null)
-                    return
-                  }
-                  
-                  // Check if it's an image annotation (starts with "img-")
-                  const isImageAnnotation = id.startsWith('img-')
-                  
-                  if (viewMode === 'text') {
-                    // In text mode, only allow selecting text annotations
-                    if (!isImageAnnotation) {
-                      setSelectedAnnotationId(id)
-                      setSelectedImageAnnotationId(null)
-                    } else {
-                      // Ignore image annotation selection in text mode
-                      setSelectedAnnotationId(null)
-                      setSelectedImageAnnotationId(null)
-                    }
-                  } else {
-                    // In image mode, only allow selecting image annotations
-                    if (isImageAnnotation) {
-                      setSelectedImageAnnotationId(id)
-                      setSelectedAnnotationId(null)
-                    } else {
-                      // Ignore text annotation selection in image mode
-                      setSelectedAnnotationId(null)
-                      setSelectedImageAnnotationId(null)
-                    }
-                  }
-                }}
-              />
-            )}
-          </div>
-        </div>
+        <PDFViewerContainer
+          document={document}
+          documentId={docid}
+          isLoading={isLoading}
+          pdfViewerRef={pdfViewerRef as React.RefObject<AnnotatedPDFViewerRef>}
+          annotations={currentAnnotations}
+          onLoadComplete={handlePDFLoadComplete}
+          onAnnotationSelected={handleAnnotationSelected}
+          viewMode={viewMode}
+          onNavigate={(to) => navigate({ to })}
+        />
 
-        {/* Sidebar */}
-        <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
-          {/* Text/Image Selector - Top of Sidebar */}
-          <div className="p-4 border-b border-gray-200">
-            <div className="relative bg-gray-100 rounded-lg p-1 flex">
-              <div
-                className={`absolute top-1 bottom-1 w-1/2 bg-white rounded-md shadow-sm transition-transform duration-300 ease-in-out ${
-                  viewMode === 'image' ? 'translate-x-full' : 'translate-x-0'
-                }`}
-              />
-              <button
-                onClick={() => setViewMode('text')}
-                className={`relative z-10 flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors duration-300 ${
-                  viewMode === 'text' ? 'text-gray-900' : 'text-gray-600'
-                }`}
-              >
-                Text
-              </button>
-              <button
-                onClick={() => setViewMode('image')}
-                className={`relative z-10 flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors duration-300 ${
-                  viewMode === 'image' ? 'text-gray-900' : 'text-gray-600'
-                }`}
-              >
-                Image
-              </button>
-            </div>
-          </div>
-
-          {/* Progress Bar */}
-          <div className="p-4 border-b border-gray-200">
-            <div className="relative w-full h-3 bg-gray-200 rounded-full overflow-hidden">
-              {currentAnnotationsList.length > 0 ? (
-                <div 
-                  className="absolute inset-y-0 left-0 bg-green-500 rounded-full transition-all duration-300"
-                  style={{ width: `${((currentBoxIndex >= 0 ? currentBoxIndex + 1 : 0) / currentAnnotationsList.length) * 100}%` }}
-                ></div>
-              ) : (
-                <div className="absolute inset-0 bg-gray-300 rounded-full"></div>
-              )}
-            </div>
-            <p className="text-sm text-gray-700 mt-2">
-              {currentAnnotationsList.length > 0 && currentBoxIndex >= 0 
-                ? `${currentBoxIndex + 1} of ${currentAnnotationsList.length} reviewed`
-                : '0 of 0 reviewed'}
-            </p>
-          </div>
-
-          {/* Selection Header */}
-          <div className="px-6 pt-4 pb-4 border-b border-gray-200">
-            <h3 className="text-base font-semibold text-gray-900 mb-2">Selection</h3>
-            <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-bold text-gray-900">
-                {currentBoxIndex >= 0 && currentAnnotationsList.length > 0 ? currentBoxIndex + 1 : 0}
-              </span>
-              <span className="text-3xl font-bold text-gray-900">/</span>
-              <span className="text-3xl font-bold text-gray-900">
-                {currentAnnotationsList.length > 0 ? currentAnnotationsList.length : 0}
-              </span>
-              <span className="text-base font-normal text-gray-700 ml-1">
-                {viewMode === 'text' ? 'boxes' : 'images'}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-hidden relative">
-            {/* Sliding container */}
-            <div
-              className="flex h-full transition-transform duration-300 ease-in-out"
-              style={{
-                transform: viewMode === 'image' ? 'translateX(-100%)' : 'translateX(0%)',
-                width: '200%',
-              }}
-            >
-              {/* Text View */}
-              <div className="w-1/2 overflow-auto p-6">
-                {selectedAnnotationId && boundingBoxData.has(selectedAnnotationId) ? (
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-700 mb-2">Annotation ID</h3>
-                      <p className="text-sm text-gray-900">{selectedAnnotationId}</p>
-                    </div>
-                    {boundingBoxData.get(selectedAnnotationId)?.text && (
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-700 mb-2">Text</h3>
-                        <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded border">
-                          {boundingBoxData.get(selectedAnnotationId)?.text}
-                        </p>
-                      </div>
-                    )}
-                    {boundingBoxData.get(selectedAnnotationId)?.classification && (
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-700 mb-2">Classification</h3>
-                        <p className="text-sm text-gray-900">
-                          {boundingBoxData.get(selectedAnnotationId)?.classification}
-                        </p>
-                      </div>
-                    )}
-                    {boundingBoxData.get(selectedAnnotationId)?.confidence !== undefined && (
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-700 mb-2">Confidence</h3>
-                        <p className="text-sm text-gray-900">
-                          {(() => {
-                            const confidence = boundingBoxData.get(selectedAnnotationId)?.confidence
-                            if (typeof confidence === 'number') {
-                              return `${(confidence * 100).toFixed(2)}%`
-                            }
-                            return confidence?.toString() || ''
-                          })()}
-                        </p>
-                      </div>
-                    )}
-                    {boundingBoxData.get(selectedAnnotationId)?.explanation && (
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-700 mb-2">Explanation</h3>
-                        <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded border">
-                          {boundingBoxData.get(selectedAnnotationId)?.explanation}
-                        </p>
-                      </div>
-                    )}
-                    {boundingBoxData.get(selectedAnnotationId)?.type && (
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-700 mb-2">Type</h3>
-                        <p className="text-sm text-gray-900">{boundingBoxData.get(selectedAnnotationId)?.type}</p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-gray-500 text-center">Select an annotation to view details</p>
-                )}
-              </div>
-
-              {/* Image View */}
-              <div className="w-1/2 overflow-auto p-6">
-                {selectedImageAnnotationId && imageAnnotationsData.has(selectedImageAnnotationId) ? (
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-700 mb-2">Image ID</h3>
-                      <p className="text-sm text-gray-900">{selectedImageAnnotationId}</p>
-                    </div>
-                    {imageAnnotationsData.get(selectedImageAnnotationId) && (() => {
-                      const imageData = imageAnnotationsData.get(selectedImageAnnotationId)!
-                      return (
-                        <>
-                          <div>
-                            <h3 className="text-sm font-medium text-gray-700 mb-2">Page</h3>
-                            <p className="text-sm text-gray-900">{imageData.page}</p>
-                          </div>
-                          <div>
-                            <h3 className="text-sm font-medium text-gray-700 mb-2">Image Index</h3>
-                            <p className="text-sm text-gray-900">{imageData.image_index}</p>
-                          </div>
-                          <div>
-                            <h3 className="text-sm font-medium text-gray-700 mb-2">Extension</h3>
-                            <p className="text-sm text-gray-900">{imageData.extension.toUpperCase()}</p>
-                          </div>
-                          <div>
-                            <h3 className="text-sm font-medium text-gray-700 mb-2">Size</h3>
-                            <p className="text-sm text-gray-900">
-                              {(imageData.size_bytes / 1024).toFixed(2)} KB
-                            </p>
-                          </div>
-                          <div>
-                            <h3 className="text-sm font-medium text-gray-700 mb-2">XRef</h3>
-                            <p className="text-sm text-gray-900">{imageData.xref}</p>
-                          </div>
-                          <div>
-                            <h3 className="text-sm font-medium text-gray-700 mb-2">Safe Search Results</h3>
-                            <div className="bg-gray-50 p-3 rounded border space-y-2">
-                              <div className="flex justify-between">
-                                <span className="text-sm text-gray-600">Adult:</span>
-                                <span className="text-sm text-gray-900">{imageData.safe_search.adult}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-sm text-gray-600">Spoof:</span>
-                                <span className="text-sm text-gray-900">{imageData.safe_search.spoof}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-sm text-gray-600">Medical:</span>
-                                <span className="text-sm text-gray-900">{imageData.safe_search.medical}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-sm text-gray-600">Violence:</span>
-                                <span className="text-sm text-gray-900">{imageData.safe_search.violence}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-sm text-gray-600">Racy:</span>
-                                <span className="text-sm text-gray-900">{imageData.safe_search.racy}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </>
-                      )
-                    })()}
-                  </div>
-                ) : (
-                  <p className="text-gray-500 text-center">Select an image annotation to view details</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        <ReviewSidebar
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          currentIndex={currentBoxIndex}
+          totalCount={currentAnnotationsList.length}
+          selectedAnnotationId={selectedAnnotationId}
+          selectedImageAnnotationId={selectedImageAnnotationId}
+          boundingBoxData={boundingBoxData}
+          imageAnnotationsData={imageAnnotationsData}
+        />
       </div>
 
-      {/* Bottom Bar */}
-      <div className="h-16 bg-white border-t border-gray-200 flex items-center justify-between px-6">
-        <div className="flex items-center gap-4">
-          <h2 className="text-lg font-semibold">{document?.filename || 'Document Viewer'}</h2>
-          <p className="text-sm text-gray-500">File ID: {document?.file_id || docid}</p>
-          {currentAnnotationsList.length > 0 && currentBoxIndex >= 0 && (
-            <p className="text-sm text-gray-500">
-              {viewMode === 'text' ? 'Text' : 'Image'} {currentBoxIndex + 1}/{currentAnnotationsList.length}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handlePrevious}
-            disabled={currentAnnotationsList.length === 0 || isLoading}
-            className="px-4 py-2 text-sm font-medium rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Previous {viewMode === 'text' ? 'Text' : 'Image'}
-          </button>
-          <button
-            onClick={handleNext}
-            disabled={currentAnnotationsList.length === 0 || isLoading}
-            className="px-4 py-2 text-sm font-medium rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Next {viewMode === 'text' ? 'Text' : 'Image'}
-          </button>
-          <button
-            onClick={() => navigate({ to: '/reviewer/queue' })}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
-          >
-            Back to Queue
-          </button>
-        </div>
-      </div>
+      <BottomNavigationBar
+        documentFilename={document?.filename}
+        documentId={document?.file_id || docid || undefined}
+        currentIndex={currentBoxIndex}
+        totalCount={currentAnnotationsList.length}
+        viewMode={viewMode}
+        onPrevious={handlePrevious}
+        onNext={handleNext}
+        onPreviousCritical={handlePreviousCritical}
+        onNextCritical={handleNextCritical}
+        hasCriticalAnnotations={criticalAnnotationIndices.length > 0}
+        isLoading={isLoading}
+      />
     </div>
   )
 }

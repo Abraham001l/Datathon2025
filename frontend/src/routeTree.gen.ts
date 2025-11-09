@@ -14,6 +14,7 @@ import { Route as UploadIndexRouteImport } from './routes/upload/index'
 import { Route as TestIndexRouteImport } from './routes/test/index'
 import { Route as ReviewerIndexRouteImport } from './routes/reviewer/index'
 import { Route as PdftestIndexRouteImport } from './routes/pdftest/index'
+import { Route as GooftestIndexRouteImport } from './routes/gooftest/index'
 import { Route as ReviewerReviewRouteImport } from './routes/reviewer/review'
 import { Route as ReviewerQueueRouteImport } from './routes/reviewer/queue'
 
@@ -42,6 +43,11 @@ const PdftestIndexRoute = PdftestIndexRouteImport.update({
   path: '/pdftest/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GooftestIndexRoute = GooftestIndexRouteImport.update({
+  id: '/gooftest/',
+  path: '/gooftest/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReviewerReviewRoute = ReviewerReviewRouteImport.update({
   id: '/reviewer/review',
   path: '/reviewer/review',
@@ -57,6 +63,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/reviewer/queue': typeof ReviewerQueueRoute
   '/reviewer/review': typeof ReviewerReviewRoute
+  '/gooftest': typeof GooftestIndexRoute
   '/pdftest': typeof PdftestIndexRoute
   '/reviewer': typeof ReviewerIndexRoute
   '/test': typeof TestIndexRoute
@@ -66,6 +73,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/reviewer/queue': typeof ReviewerQueueRoute
   '/reviewer/review': typeof ReviewerReviewRoute
+  '/gooftest': typeof GooftestIndexRoute
   '/pdftest': typeof PdftestIndexRoute
   '/reviewer': typeof ReviewerIndexRoute
   '/test': typeof TestIndexRoute
@@ -76,6 +84,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/reviewer/queue': typeof ReviewerQueueRoute
   '/reviewer/review': typeof ReviewerReviewRoute
+  '/gooftest/': typeof GooftestIndexRoute
   '/pdftest/': typeof PdftestIndexRoute
   '/reviewer/': typeof ReviewerIndexRoute
   '/test/': typeof TestIndexRoute
@@ -87,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/reviewer/queue'
     | '/reviewer/review'
+    | '/gooftest'
     | '/pdftest'
     | '/reviewer'
     | '/test'
@@ -96,6 +106,7 @@ export interface FileRouteTypes {
     | '/'
     | '/reviewer/queue'
     | '/reviewer/review'
+    | '/gooftest'
     | '/pdftest'
     | '/reviewer'
     | '/test'
@@ -105,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/reviewer/queue'
     | '/reviewer/review'
+    | '/gooftest/'
     | '/pdftest/'
     | '/reviewer/'
     | '/test/'
@@ -115,6 +127,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ReviewerQueueRoute: typeof ReviewerQueueRoute
   ReviewerReviewRoute: typeof ReviewerReviewRoute
+  GooftestIndexRoute: typeof GooftestIndexRoute
   PdftestIndexRoute: typeof PdftestIndexRoute
   ReviewerIndexRoute: typeof ReviewerIndexRoute
   TestIndexRoute: typeof TestIndexRoute
@@ -158,6 +171,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PdftestIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/gooftest/': {
+      id: '/gooftest/'
+      path: '/gooftest'
+      fullPath: '/gooftest'
+      preLoaderRoute: typeof GooftestIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reviewer/review': {
       id: '/reviewer/review'
       path: '/reviewer/review'
@@ -179,6 +199,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ReviewerQueueRoute: ReviewerQueueRoute,
   ReviewerReviewRoute: ReviewerReviewRoute,
+  GooftestIndexRoute: GooftestIndexRoute,
   PdftestIndexRoute: PdftestIndexRoute,
   ReviewerIndexRoute: ReviewerIndexRoute,
   TestIndexRoute: TestIndexRoute,
