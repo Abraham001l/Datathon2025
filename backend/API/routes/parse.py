@@ -10,9 +10,10 @@ from io import BytesIO
 from fastapi import APIRouter, File, UploadFile, HTTPException, Form
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
-from google.cloud import documentai
+from google.cloud import documentai, vision
 from google.api_core import exceptions as google_exceptions
 import sys
+import fitz  # PyMuPDF
 from PyPDF2 import PdfReader, PdfWriter  # PyPDF2 (standard import)
 from pdfparse import extract_text_with_boxes
 
@@ -23,6 +24,7 @@ if str(parent_dir) not in sys.path:
 
 # Import upload functions from upload.py
 from routes.upload import upload_file_to_gridfs, upload_bounding_boxes
+from database import get_database
 
 load_dotenv()
 
@@ -51,6 +53,337 @@ def get_document_ai_client():
             status_code=500,
             detail=f"Failed to initialize Document AI client: {str(e)}"
         )
+
+
+def get_vision_client() -> Optional[vision.ImageAnnotatorClient]:
+    """Initialize and return Vision API client if credentials are available."""
+    try:
+        credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        if not credentials_path or not os.path.exists(credentials_path):
+            logger.warning("Google Vision API credentials not found, skipping image classification")
+            return None
+        
+        client = vision.ImageAnnotatorClient()
+        logger.debug("Vision API client initialized successfully")
+        return client
+    except Exception as e:
+        logger.warning(f"Failed to initialize Vision API client: {str(e)}. Skipping image classification.")
+        return None
+
+
+def get_likelihood_name(likelihood_enum) -> str:
+    """Convert Likelihood enum to string name."""
+    likelihood_map = {
+        0: "UNKNOWN",
+        1: "VERY_UNLIKELY",
+        2: "UNLIKELY",
+        3: "POSSIBLE",
+        4: "LIKELY",
+        5: "VERY_LIKELY"
+    }
+    
+    if hasattr(likelihood_enum, 'name'):
+        return likelihood_enum.name
+    elif isinstance(likelihood_enum, int):
+        return likelihood_map.get(likelihood_enum, "UNKNOWN")
+    else:
+        return str(likelihood_enum)
+
+
+def parse_safe_search_result(safe_search_annotation, error: Optional[str] = None) -> Dict[str, Any]:
+    """Parse Safe Search annotation into a dictionary."""
+    if error:
+        return {
+            "error": error,
+            "adult": None,
+            "spoof": None,
+            "medical": None,
+            "violence": None,
+            "racy": None,
+        }
+    
+    if not safe_search_annotation:
+        return {
+            "error": "No safe search annotation in response",
+            "adult": None,
+            "spoof": None,
+            "medical": None,
+            "violence": None,
+            "racy": None,
+        }
+    
+    return {
+        "adult": get_likelihood_name(safe_search_annotation.adult),
+        "spoof": get_likelihood_name(safe_search_annotation.spoof),
+        "medical": get_likelihood_name(safe_search_annotation.medical),
+        "violence": get_likelihood_name(safe_search_annotation.violence),
+        "racy": get_likelihood_name(safe_search_annotation.racy),
+    }
+
+
+def batch_classify_images_safe_search(
+    image_contents: List[bytes],
+    vision_client: vision.ImageAnnotatorClient,
+    batch_size: int = 16
+) -> List[Dict[str, Any]]:
+    """
+    Classify multiple images using Google Vision API Safe Search in batches.
+    
+    Args:
+        image_contents: List of image file contents as bytes
+        vision_client: Initialized Vision API client
+        batch_size: Number of images per batch (max 16, default 16)
+        
+    Returns:
+        List of dictionaries with Safe Search classification results for each image
+    """
+    if batch_size > 16:
+        batch_size = 16  # Google Vision API limit
+        logger.warning(f"Batch size capped at 16 (API limit)")
+    
+    results = []
+    total_images = len(image_contents)
+    
+    # Process images in batches
+    for batch_start in range(0, total_images, batch_size):
+        batch_end = min(batch_start + batch_size, total_images)
+        batch_contents = image_contents[batch_start:batch_end]
+        batch_num = (batch_start // batch_size) + 1
+        total_batches = (total_images + batch_size - 1) // batch_size
+        
+        logger.debug(f"Processing batch {batch_num}/{total_batches} ({len(batch_contents)} images)...")
+        
+        try:
+            # Prepare batch request
+            requests = []
+            batch_results = [None] * len(batch_contents)
+            
+            for idx, image_content in enumerate(batch_contents):
+                try:
+                    image = vision.Image(content=image_content)
+                    request = vision.AnnotateImageRequest(
+                        image=image,
+                        features=[vision.Feature(type_=vision.Feature.Type.SAFE_SEARCH_DETECTION)]
+                    )
+                    requests.append((idx, request))
+                except Exception as e:
+                    batch_results[idx] = parse_safe_search_result(None, f"Failed to process image: {str(e)}")
+            
+            # Only process batch if we have valid requests
+            if requests:
+                api_requests = [req for _, req in requests]
+                request_mapping = {i: orig_idx for i, (orig_idx, _) in enumerate(requests)}
+                
+                # Make batch API call
+                batch_response = vision_client.batch_annotate_images(requests=api_requests)
+                
+                # Map responses back to original indices
+                for api_idx, response in enumerate(batch_response.responses):
+                    if api_idx in request_mapping:
+                        orig_idx = request_mapping[api_idx]
+                        
+                        if response.error and response.error.message:
+                            batch_results[orig_idx] = parse_safe_search_result(None, response.error.message)
+                        else:
+                            safe_search = response.safe_search_annotation
+                            batch_results[orig_idx] = parse_safe_search_result(safe_search)
+            
+            # Fill in any None results
+            for idx, result in enumerate(batch_results):
+                if result is None:
+                    batch_results[idx] = parse_safe_search_result(None, "No result returned from API")
+            
+            results.extend(batch_results)
+            
+        except Exception as e:
+            logger.error(f"Batch {batch_num} failed: {e}", exc_info=True)
+            error_result = parse_safe_search_result(None, f"Batch processing error: {str(e)}")
+            for _ in batch_contents:
+                results.append(error_result)
+    
+    return results
+
+
+def extract_images_from_pdf(pdf_path: str) -> List[Dict[str, Any]]:
+    """
+    Extract embedded images and their bounding boxes from a PDF using PyMuPDF.
+    
+    Args:
+        pdf_path: Path to the PDF file
+        
+    Returns:
+        List of dictionaries containing image metadata, bounding boxes, and image data
+    """
+    images_data = []
+    
+    try:
+        doc = fitz.open(pdf_path)
+        page_count = len(doc)
+        logger.debug(f"Extracting images from {page_count} pages")
+        
+        for page_num in range(page_count):
+            page = doc[page_num]
+            
+            # Get images on page (only embedded images)
+            images = page.get_images(full=True)
+            if not images:
+                continue
+            
+            logger.debug(f"Page {page_num + 1}: {len(images)} image(s) found")
+            
+            # Build mapping of xref to bounding boxes
+            xref_to_bbox = {}
+            try:
+                # Get image blocks from page content
+                page_dict = page.get_text("dict")
+                for block in page_dict.get("blocks", []):
+                    if block.get("type") == 1 and "image" in block:  # Type 1 = image block
+                        img_data = block["image"]
+                        bbox_rect = fitz.Rect(block["bbox"])
+                        if "xref" in img_data:
+                            xref_to_bbox[img_data["xref"]] = bbox_rect
+            except Exception as e:
+                logger.debug(f"Error extracting bboxes from page dict: {e}")
+            
+            # Also try get_image_rects for each xref
+            for img_info in images:
+                xref = img_info[0]
+                if xref not in xref_to_bbox:
+                    try:
+                        rects = page.get_image_rects(xref)
+                        if rects and len(rects) > 0:
+                            xref_to_bbox[xref] = rects[0]
+                    except Exception:
+                        pass
+            
+            # Extract images
+            for img_idx, img in enumerate(images):
+                xref = img[0]
+                try:
+                    # Extract the embedded image data
+                    base_image = doc.extract_image(xref)
+                    image_bytes = base_image["image"]
+                    image_ext = base_image["ext"]
+                    
+                    # Get bounding box if available
+                    bbox_dict = None
+                    if xref in xref_to_bbox:
+                        bbox = xref_to_bbox[xref]
+                        bbox_dict = {
+                            "x0": round(bbox.x0, 2),
+                            "y0": round(bbox.y0, 2),
+                            "x1": round(bbox.x1, 2),
+                            "y1": round(bbox.y1, 2),
+                            "width": round(bbox.width, 2),
+                            "height": round(bbox.height, 2)
+                        }
+                    
+                    # Get page dimensions
+                    rect = page.rect
+                    
+                    image_data = {
+                        "page": page_num + 1,
+                        "image_index": img_idx + 1,
+                        "xref": xref,
+                        "extension": image_ext,
+                        "size_bytes": len(image_bytes),
+                        "bounding_box": bbox_dict,
+                        "page_width": round(rect.width, 2),
+                        "page_height": round(rect.height, 2),
+                        "image_bytes": image_bytes  # Store for classification
+                    }
+                    images_data.append(image_data)
+                    
+                    logger.debug(f"  Extracted image {img_idx + 1} on page {page_num + 1}: {len(image_bytes)} bytes, {image_ext}")
+                    
+                except Exception as img_error:
+                    logger.warning(f"Failed to extract image {img_idx + 1} (xref={xref}) on page {page_num + 1}: {img_error}")
+        
+        doc.close()
+        logger.info(f"Extracted {len(images_data)} images from PDF")
+        
+    except Exception as e:
+        logger.error(f"Error extracting images from PDF: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error extracting images from PDF: {str(e)}"
+        )
+    
+    return images_data
+
+
+def upload_image_bounding_boxes(
+    pdf_file_id: str,
+    filename: str,
+    images_data: List[Dict[str, Any]]
+) -> str:
+    """
+    Upload image bounding boxes and Safe Search classifications to MongoDB.
+    
+    Args:
+        pdf_file_id: The ID of the PDF file in GridFS
+        filename: The filename of the PDF
+        images_data: List of image data dictionaries with classifications
+        
+    Returns:
+        The ID of the inserted document as string
+    """
+    logger.debug(f"Uploading image bounding boxes for file: {filename}, pdf_file_id: {pdf_file_id}")
+    
+    try:
+        # Get database instance
+        db, _ = get_database()
+        logger.debug("Database connection established")
+        
+        # Prepare image data for storage (remove image_bytes, keep only metadata)
+        stored_images = []
+        for img_data in images_data:
+            stored_img = {
+                "page": img_data["page"],
+                "image_index": img_data["image_index"],
+                "xref": img_data["xref"],
+                "extension": img_data["extension"],
+                "size_bytes": img_data["size_bytes"],
+                "bounding_box": img_data["bounding_box"],
+                "page_width": img_data["page_width"],
+                "page_height": img_data["page_height"],
+                "safe_search": img_data.get("safe_search", {})
+            }
+            stored_images.append(stored_img)
+        
+        # Prepare document
+        image_boxes_doc = {
+            'pdf_file_id': pdf_file_id,
+            'filename': filename,
+            'images': stored_images,
+            'summary': {
+                'total_images': len(stored_images),
+                'images_with_bbox': sum(1 for img in stored_images if img.get('bounding_box')),
+                'images_classified': sum(1 for img in stored_images if img.get('safe_search') and not img.get('safe_search', {}).get('error'))
+            }
+        }
+        
+        logger.debug("Storing image bounding boxes in MongoDB collection")
+        # Store in MongoDB collection
+        image_boxes_collection = db['bounding_boxes_img']
+        
+        # Delete any existing image bounding boxes for this filename first
+        delete_result = image_boxes_collection.delete_one({'filename': filename})
+        if delete_result.deleted_count > 0:
+            logger.debug(f"Deleted existing image bounding boxes document for filename: {filename}")
+        
+        # Insert new document
+        result = image_boxes_collection.insert_one(image_boxes_doc)
+        if not result.inserted_id:
+            raise ValueError(f"Failed to insert image bounding boxes document for filename: {filename}")
+        
+        image_boxes_id = str(result.inserted_id)
+        logger.info(f"Image bounding boxes uploaded successfully for file: {filename}, image_boxes_id: {image_boxes_id}")
+        return image_boxes_id
+        
+    except Exception as e:
+        logger.error(f"Error uploading image bounding boxes for {filename}: {str(e)}", exc_info=True)
+        raise
 
 
 def get_pdf_page_count(pdf_content: bytes) -> int:
@@ -366,6 +699,60 @@ async def upload_and_process_pdf(
         )
         logger.info(f"Bounding boxes uploaded: bounding_boxes_id={bounding_boxes_id}")
         
+        # Extract and process images from PDF
+        image_boxes_id = None
+        images_extracted = 0
+        images_classified = 0
+        try:
+            logger.info("Extracting images from PDF")
+            images_data = extract_images_from_pdf(str(pdf_path))
+            images_extracted = len(images_data)
+            logger.info(f"Extracted {images_extracted} images from PDF")
+            
+            # Classify images with Vision API Safe Search if available
+            if images_data:
+                vision_client = get_vision_client()
+                if vision_client:
+                    logger.info("Classifying images with Google Vision API Safe Search")
+                    # Extract image bytes for classification
+                    image_contents = [img["image_bytes"] for img in images_data]
+                    
+                    # Batch classify images
+                    safe_search_results = batch_classify_images_safe_search(
+                        image_contents,
+                        vision_client,
+                        batch_size=16
+                    )
+                    
+                    # Assign classification results to images
+                    for idx, result in enumerate(safe_search_results):
+                        if idx < len(images_data):
+                            images_data[idx]["safe_search"] = result
+                            if result.get("error") is None:
+                                images_classified += 1
+                    
+                    logger.info(f"Classified {images_classified} of {images_extracted} images")
+                else:
+                    logger.warning("Vision API client not available, skipping image classification")
+                    # Add error to all images
+                    for img_data in images_data:
+                        img_data["safe_search"] = parse_safe_search_result(None, "Vision API not available")
+                
+                # Upload image bounding boxes and classifications
+                logger.info("Uploading image bounding boxes to MongoDB")
+                image_boxes_id = upload_image_bounding_boxes(
+                    pdf_file_id=pdf_file_id,
+                    filename=file.filename,
+                    images_data=images_data
+                )
+                logger.info(f"Image bounding boxes uploaded: image_boxes_id={image_boxes_id}")
+            else:
+                logger.info("No images found in PDF")
+        except Exception as img_error:
+            logger.error(f"Error processing images: {str(img_error)}", exc_info=True)
+            # Don't fail the entire request if image processing fails
+            logger.warning("Continuing despite image processing error")
+        
         # Get summary from extracted_data
         was_split = page_count > MAX_PAGES_PER_CHUNK
         summary = {
@@ -374,19 +761,26 @@ async def upload_and_process_pdf(
             'total_images': len(extracted_data.get('images', [])),
             'full_text_length': len(extracted_data.get('full_text', '')),
             'was_split': was_split,
-            'original_page_count': page_count
+            'original_page_count': page_count,
+            'images_extracted': images_extracted,
+            'images_classified': images_classified
         }
         logger.info(f"Processing complete - Summary: {summary}")
         
+        response_content = {
+            "message": "PDF processed and uploaded successfully",
+            "pdf_file_id": pdf_file_id,
+            "bounding_boxes_id": bounding_boxes_id,
+            "filename": file.filename,
+            "summary": summary
+        }
+        
+        if image_boxes_id:
+            response_content["image_boxes_id"] = image_boxes_id
+        
         return JSONResponse(
             status_code=201,
-            content={
-                "message": "PDF processed and uploaded successfully",
-                "pdf_file_id": pdf_file_id,
-                "bounding_boxes_id": bounding_boxes_id,
-                "filename": file.filename,
-                "summary": summary
-            }
+            content=response_content
         )
     
     except HTTPException as e:

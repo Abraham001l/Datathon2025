@@ -28,6 +28,7 @@ async def upload_file_to_gridfs(
     Upload file contents to GridFS. If a file with the same filename exists, it will be updated.
     When updating, this function will:
     - Delete old bounding boxes document
+    - Delete old image bounding boxes document
     - Delete old GridFS file and all its chunks
     
     Args:
@@ -72,6 +73,18 @@ async def upload_file_to_gridfs(
         except Exception as e:
             logger.warning(f"Error deleting old bounding boxes: {str(e)}")
             # Continue with file deletion even if bounding boxes deletion fails
+        
+        # Delete old image bounding boxes document
+        try:
+            image_boxes_collection = db['bounding_boxes_img']
+            delete_result = image_boxes_collection.delete_one({'filename': filename})
+            if delete_result.deleted_count > 0:
+                logger.info(f"Deleted old image bounding boxes document for filename: {filename}")
+            else:
+                logger.debug(f"No image bounding boxes document found for filename: {filename}")
+        except Exception as e:
+            logger.warning(f"Error deleting old image bounding boxes: {str(e)}")
+            # Continue with file deletion even if image bounding boxes deletion fails
         
         # Delete the old GridFS file (this should automatically delete from fs.files and all chunks from fs.chunks)
         try:
