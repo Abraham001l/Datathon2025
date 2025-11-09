@@ -90,7 +90,7 @@ async def list_documents(
                 "length": grid_file.length,
                 "content_type": grid_file.content_type,
                 "metadata": {
-                    "description": getattr(grid_file, 'description', None),
+                    "summary": getattr(grid_file, 'summary', None),
                     "category": getattr(grid_file, 'category', None),
                     "status": getattr(grid_file, 'status', None),
                     "ai_classified_sensitivity": getattr(grid_file, 'ai_classified_sensitivity', None),

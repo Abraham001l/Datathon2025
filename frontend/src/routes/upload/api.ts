@@ -89,6 +89,7 @@ export const apiService = {
 		void filepath
 		void projectSpecs
 		void clearance
+		console.log()
 		return { status: 'success', submission_id: '' }
 	},
 	getSubmissionFlags: async (submissionId: string): Promise<{
@@ -116,6 +117,7 @@ export const apiService = {
 			classification?: string
 			confidence?: string | number
 			explanation?: string
+			summary?: string
 		}>
 		dimensions?: Record<string, unknown>
 	}>> => {
