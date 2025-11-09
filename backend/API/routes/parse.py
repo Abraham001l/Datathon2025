@@ -5,7 +5,7 @@ import shutil
 import logging
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, File, UploadFile, HTTPException, Form
+from fastapi import APIRouter, File, UploadFile, HTTPException, Form, BackgroundTasks
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from google.api_core import exceptions as google_exceptions
@@ -22,6 +22,7 @@ from services.document_ai import get_document_ai_client, process_pdf_chunk
 from services.document_parser import extract_text_with_boxes
 from services.pdf_utils import get_pdf_page_count, split_pdf, merge_extracted_data
 from services.images import extract_images_from_pdf, classify_images, upload_image_bounding_boxes
+from services.bbox_classification import classify_bounding_boxes
 from routes.upload import upload_file_to_gridfs, upload_bounding_boxes
 
 load_dotenv()
@@ -32,6 +33,7 @@ router = APIRouter(prefix="/parse", tags=["parse"])
 
 @router.post("/parse-pdf")
 async def upload_and_process_pdf(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     processor_name: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
@@ -213,6 +215,10 @@ async def upload_and_process_pdf(
             extracted_data=extracted_data
         )
         logger.info(f"Bounding boxes uploaded: bounding_boxes_id={bounding_boxes_id}")
+        
+        # Schedule bounding box classification to run asynchronously in the background
+        logger.info("Scheduling bounding box classification to run asynchronously")
+        background_tasks.add_task(classify_bounding_boxes, pdf_file_id, document_summary)
         
         # Extract and process images from PDF
         image_boxes_id = None

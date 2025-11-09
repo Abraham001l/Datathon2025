@@ -9,6 +9,16 @@ from services.llm import VultrLLM
 load_dotenv()
 logger = logging.getLogger(__name__)
 
+# Get MAX_WORKERS from environment variable, default to 20
+try:
+    MAX_WORKERS = int(os.getenv("TOP_AGENT_MAX_WORKERS", "20"))
+    if MAX_WORKERS < 1:
+        logger.warning(f"TOP_AGENT_MAX_WORKERS must be >= 1, got {MAX_WORKERS}. Using default 20.")
+        MAX_WORKERS = 20
+except (ValueError, TypeError):
+    logger.warning(f"Invalid TOP_AGENT_MAX_WORKERS value, using default 20.")
+    MAX_WORKERS = 20
+
 
 class ToP_Agent:
     """Tree of Prompts Agent for classifying documents into sensitivity categories."""
@@ -146,7 +156,7 @@ Text: """
         for i in range(len(blocks)):
             blocks[i] = summary_prompt + blocks[i]
 
-        with ThreadPoolExecutor(max_workers=20) as executor:
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             # Submitting blocks to executors
             future_to_block = {executor.submit(self.run, block): block for block in blocks}
 
