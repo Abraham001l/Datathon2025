@@ -23,6 +23,7 @@ from services.document_parser import extract_text_with_boxes
 from services.pdf_utils import get_pdf_page_count, split_pdf, merge_extracted_data
 from services.images import extract_images_from_pdf, classify_images, upload_image_bounding_boxes
 from services.bbox_classification import classify_bounding_boxes
+from services.bbox_combiner import combine_bounding_boxes
 from routes.upload import upload_file_to_gridfs, upload_bounding_boxes
 
 load_dotenv()
@@ -161,6 +162,16 @@ async def upload_and_process_pdf(
         # Clean up temporary data
         if '_image_elements' in extracted_data:
             del extracted_data['_image_elements']
+        
+        # Combine small bounding boxes into larger ones
+        logger.info("Combining small bounding boxes")
+        try:
+            extracted_data = combine_bounding_boxes(extracted_data)
+            logger.info("Bounding box combination completed")
+        except Exception as combine_error:
+            logger.error(f"Error combining bounding boxes: {str(combine_error)}", exc_info=True)
+            # Continue processing even if combination fails
+            logger.warning("Continuing with original bounding boxes despite combination error")
         
         # Generate document summary using Vultr LLM (required for parsed PDFs)
         document_summary = None
