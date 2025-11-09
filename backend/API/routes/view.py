@@ -222,6 +222,55 @@ async def get_document_bounding_boxes(file_id: str):
             detail=f"Error retrieving document bounding boxes: {str(e)}"
         )
 
+@router.get("/document/{file_id}/images")
+async def get_document_images(file_id: str):
+    """
+    Get document images from the bounding_boxes collection. Just have to return the "images" attribute
+    
+    - **file_id**: The MongoDB ObjectId of the document to get images for
+    """
+    logger.info(f"Get document images request received for file_id: {file_id}")
+    try:
+        # Validate ObjectId format
+        try:
+            object_id = ObjectId(file_id)
+        except Exception:
+            logger.warning(f"Invalid file ID format: {file_id}")
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid file ID format"
+            )
+        
+        # Get database connection
+        logger.debug("Connecting to database")
+        db, _ = get_database()
+        
+        # Search for document with matching _id in bounding_boxes collection
+        collection = db['bounding_boxes_img']
+
+        correct_document = None
+        for document in collection.find():
+            if document['pdf_file_id'] == file_id:
+                correct_document = document
+                break
+        
+        if not correct_document:
+            logger.warning(f"Document not found for file_id: {file_id}")
+            raise HTTPException(
+                status_code=404,
+                detail="Document not found"
+            )
+
+        return correct_document.get("images")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving document images for {file_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving document images: {str(e)}"
+        )
+
 @router.get("/document/{file_id}/metadata")
 async def get_document_metadata(file_id: str):
     """

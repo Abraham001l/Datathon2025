@@ -128,4 +128,37 @@ export const apiService = {
 		}
 		return await response.json()
 	},
+	getDocumentImages: async (
+		file_id: string
+	): Promise<Array<{
+		page: number
+		image_index: number
+		xref: number
+		extension: string
+		size_bytes: number
+		bounding_box: {
+			x0: number
+			y0: number
+			x1: number
+			y1: number
+			width: number
+			height: number
+		}
+		page_width: number
+		page_height: number
+		safe_search: {
+			adult: string
+			spoof: string
+			medical: string
+			violence: string
+			racy: string
+		}
+	}>> => {
+		const response = await fetch(`${API_BASE_URL}/view/document/${file_id}/images`)
+		if (!response.ok) {
+			const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch document images' }))
+			throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
+		}
+		return await response.json()
+	},
 }

@@ -13,6 +13,12 @@ export interface RectangleAnnotation {
 export interface AnnotatedPDFViewerRef {
   selectAnnotationById: (annotationId: string) => void
   scrollToPage: (pageNumber: number) => void
+  deselectAnnotations: () => void
+  clearAnnotations: () => void
+  hideAllAnnotations: () => void
+  showAllAnnotations: () => void
+  hideAnnotationsByIds: (ids: Set<string>) => void
+  showAnnotationsByIds: (ids: Set<string>) => void
 }
 
 interface AnnotatedPDFViewerProps {
@@ -44,6 +50,45 @@ export const AnnotatedPDFViewer = forwardRef<AnnotatedPDFViewerRef, AnnotatedPDF
   const [isDocumentLoaded, setIsDocumentLoaded] = useState(false)
   const previousDocumentRef = useRef<string | null>(null)
 
+  useImperativeHandle(ref, () => ({
+    selectAnnotationById: (annotationId: string) => {
+      pdfViewerRef.current?.selectAnnotationById(annotationId)
+    },
+    scrollToPage: (pageNumber: number) => {
+      pdfViewerRef.current?.scrollToPage(pageNumber)
+    },
+    deselectAnnotations: () => {
+      if (pdfViewerRef.current) {
+        pdfViewerRef.current.deselectAnnotations()
+      }
+    },
+    clearAnnotations: () => {
+      if (pdfViewerRef.current) {
+        pdfViewerRef.current.clearAnnotations()
+      }
+    },
+    hideAllAnnotations: () => {
+      if (pdfViewerRef.current) {
+        pdfViewerRef.current.hideAllAnnotations()
+      }
+    },
+    showAllAnnotations: () => {
+      if (pdfViewerRef.current) {
+        pdfViewerRef.current.showAllAnnotations()
+      }
+    },
+    hideAnnotationsByIds: (ids: Set<string>) => {
+      if (pdfViewerRef.current) {
+        pdfViewerRef.current.hideAnnotationsByIds(ids)
+      }
+    },
+    showAnnotationsByIds: (ids: Set<string>) => {
+      if (pdfViewerRef.current) {
+        pdfViewerRef.current.showAnnotationsByIds(ids)
+      }
+    },
+  }), [])
+
   // Track document changes to reset loaded state
   useEffect(() => {
     const currentDocumentKey = documentUrl || documentId || null
@@ -53,9 +98,19 @@ export const AnnotatedPDFViewer = forwardRef<AnnotatedPDFViewerRef, AnnotatedPDF
     }
   }, [documentUrl, documentId])
 
-  // Add annotations when document is loaded
+  // Add annotations when document is loaded or annotations change
   useEffect(() => {
-    if (!isDocumentLoaded || !pdfViewerRef.current || annotations.length === 0) {
+    if (!isDocumentLoaded || !pdfViewerRef.current) {
+      return
+    }
+
+    // Clear existing annotations first
+    if (pdfViewerRef.current.clearAnnotations) {
+      pdfViewerRef.current.clearAnnotations()
+    }
+
+    // If no annotations, just return
+    if (annotations.length === 0) {
       return
     }
 
@@ -79,16 +134,6 @@ export const AnnotatedPDFViewer = forwardRef<AnnotatedPDFViewerRef, AnnotatedPDF
       clearTimeout(timeoutId)
     }
   }, [isDocumentLoaded, annotations])
-
-  // Expose methods via ref
-  useImperativeHandle(ref, () => ({
-    selectAnnotationById: (annotationId: string) => {
-      pdfViewerRef.current?.selectAnnotationById(annotationId)
-    },
-    scrollToPage: (pageNumber: number) => {
-      pdfViewerRef.current?.scrollToPage(pageNumber)
-    },
-  }), [])
 
   const handleLoadComplete = () => {
     setIsDocumentLoaded(true)
