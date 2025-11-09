@@ -1,3 +1,4 @@
+import { motion, AnimatePresence } from 'motion/react'
 import type { Document } from '../types'
 
 interface DocumentsTableProps {
@@ -67,7 +68,23 @@ export function DocumentsTable({ documents, isLoading }: DocumentsTableProps) {
 				<tbody>
 					<tr>
 						<td colSpan={6} className='px-4 py-8 text-center text-gray-500'>
-							Loading documents...
+							<motion.div
+								className='flex flex-col items-center justify-center gap-3'
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								transition={{ duration: 0.3 }}
+							>
+								<motion.div
+									className='w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full'
+									animate={{ rotate: 360 }}
+									transition={{
+										duration: 1,
+										repeat: Infinity,
+										ease: 'linear',
+									}}
+								/>
+								<span>Loading documents...</span>
+							</motion.div>
 						</td>
 					</tr>
 				</tbody>
@@ -100,43 +117,68 @@ export function DocumentsTable({ documents, isLoading }: DocumentsTableProps) {
 				</tr>
 			</thead>
 			<tbody className='divide-y divide-gray-200'>
-				{documents.length === 0 ? (
-					<tr>
-						<td colSpan={6} className='px-4 py-8 text-center text-gray-500'>
-							No documents found in the database.
-						</td>
-					</tr>
-				) : (
-					documents.map((doc) => (
-						<tr
-							key={doc.file_id}
-							className='hover:bg-blue-50 transition-colors'
+				<AnimatePresence mode='popLayout'>
+					{documents.length === 0 ? (
+						<motion.tr
+							key='empty'
+							initial={{ opacity: 0 }}
+							animate={{ opacity: 1 }}
+							exit={{ opacity: 0 }}
 						>
-							<td className='px-4 py-4 text-sm font-medium text-gray-900'>
-								{doc.filename || 'Unknown'}
+							<td colSpan={6} className='px-4 py-8 text-center text-gray-500'>
+								No documents found in the database.
 							</td>
-							<td className='px-4 py-4 text-sm'>
-								{doc.metadata?.status ? (
-									<StatusBadge status={doc.metadata.status} />
-								) : (
-									<span className='text-gray-500'>N/A</span>
-								)}
-							</td>
-							<td className='px-4 py-4 text-sm text-gray-500'>
-								{formatDate(doc.upload_date)}
-							</td>
-							<td className='px-4 py-4 text-sm text-gray-500'>
-								{formatFileSize(doc.length)}
-							</td>
-							<td className='px-4 py-4 text-sm text-gray-500'>
-								{doc.content_type?.split('/')[1]?.toUpperCase() || doc.content_type || 'N/A'}
-							</td>
-							<td className='px-4 py-4 text-sm text-gray-500'>
-								{doc.metadata?.ai_classified_sensitivity?.replace(/_/g, ' ') || 'N/A'}
-							</td>
-						</tr>
-					))
-				)}
+						</motion.tr>
+					) : (
+						documents.map((doc, index) => (
+							<motion.tr
+								key={doc.file_id}
+								initial={{ opacity: 0, y: 10, backgroundColor: 'rgb(255 255 255)' }}
+								animate={{ opacity: 1, y: 0, backgroundColor: 'rgb(255 255 255)' }}
+								exit={{ opacity: 0, x: -20 }}
+								transition={{
+									duration: 0.3,
+									delay: index * 0.03,
+									ease: 'easeOut',
+								}}
+								whileHover={{ 
+									backgroundColor: 'rgb(239 246 255)',
+									transition: { duration: 0.15, ease: 'easeOut' }
+								}}
+								className='cursor-default bg-white'
+							>
+								<td className='px-4 py-4 text-sm font-medium text-gray-900'>
+									{doc.filename || 'Unknown'}
+								</td>
+								<td className='px-4 py-4 text-sm'>
+									{doc.metadata?.status ? (
+										<motion.div
+											initial={{ scale: 0.8, opacity: 0 }}
+											animate={{ scale: 1, opacity: 1 }}
+											transition={{ delay: index * 0.03 + 0.1 }}
+										>
+											<StatusBadge status={doc.metadata.status} />
+										</motion.div>
+									) : (
+										<span className='text-gray-500'>N/A</span>
+									)}
+								</td>
+								<td className='px-4 py-4 text-sm text-gray-500'>
+									{formatDate(doc.upload_date)}
+								</td>
+								<td className='px-4 py-4 text-sm text-gray-500'>
+									{formatFileSize(doc.length)}
+								</td>
+								<td className='px-4 py-4 text-sm text-gray-500'>
+									{doc.content_type?.split('/')[1]?.toUpperCase() || doc.content_type || 'N/A'}
+								</td>
+								<td className='px-4 py-4 text-sm text-gray-500'>
+									{doc.metadata?.ai_classified_sensitivity?.replace(/_/g, ' ') || 'N/A'}
+								</td>
+							</motion.tr>
+						))
+					)}
+				</AnimatePresence>
 			</tbody>
 		</table>
 	)
