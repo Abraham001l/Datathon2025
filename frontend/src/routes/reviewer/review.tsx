@@ -17,6 +17,7 @@ function ReviewComponent() {
   const { docid } = Route.useSearch()
   const navigate = useNavigate()
   const [document, setDocument] = useState<Document | null>(null)
+  const [allDocuments, setAllDocuments] = useState<Document[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -30,6 +31,7 @@ function ReviewComponent() {
         setIsLoading(true)
         // Fetch all documents and find the one with matching ID
         const response = await apiService.getDocuments(100)
+        setAllDocuments(response.files)
         const foundDoc = response.files.find((doc) => doc.file_id === docid)
         
         if (foundDoc) {
@@ -46,6 +48,31 @@ function ReviewComponent() {
 
     fetchDocument()
   }, [docid])
+
+  // Find current document index and calculate next/previous
+  const currentIndex = allDocuments.findIndex((doc) => doc.file_id === docid)
+  const previousDoc = currentIndex > 0 ? allDocuments[currentIndex - 1] : null
+  const nextDoc = currentIndex < allDocuments.length - 1 ? allDocuments[currentIndex + 1] : null
+  const isFirst = currentIndex === 0
+  const isLast = currentIndex === allDocuments.length - 1
+
+  const handlePrevious = () => {
+    if (previousDoc) {
+      navigate({
+        to: '/reviewer/review',
+        search: { docid: previousDoc.file_id },
+      })
+    }
+  }
+
+  const handleNext = () => {
+    if (nextDoc) {
+      navigate({
+        to: '/reviewer/review',
+        search: { docid: nextDoc.file_id },
+      })
+    }
+  }
 
   if (!docid) {
     return (
@@ -88,44 +115,68 @@ function ReviewComponent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Two Column Layout: PDF Viewer (Left) and AI Decisions (Right) */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Column: PDF Viewer */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">
-                  {document.filename || 'Document Viewer'}
-                </h2>
-                <p className="text-sm text-gray-500">File ID: {document.file_id}</p>
-              </div>
-              <button
-                onClick={() => navigate({ to: '/reviewer/queue' })}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
-              >
-                Back to Queue
-              </button>
-            </div>
-            <div className="h-[600px] overflow-auto">
-              <AnnotatedPDFViewer
-                documentId={docid}
-                filename={document.filename}
-                apiBaseUrl={import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}
-              />
-            </div>
+    <div className="fixed inset-0 flex flex-col overflow-hidden bg-gray-50">
+      {/* Main Content Area */}
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* Left Column: PDF Viewer - Full height, touches edges */}
+        <div className="flex-1 flex flex-col bg-white border-r border-gray-200 overflow-hidden min-h-0">
+          <div className="flex-1 overflow-auto min-h-0">
+            <AnnotatedPDFViewer
+              documentId={docid}
+              filename={document.filename}
+              apiBaseUrl={import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}
+            />
           </div>
+        </div>
 
-          {/* Right Column: AI Decisions Placeholder */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="p-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">AI Decisions</h2>
-            </div>
-            <div className="p-12 text-center">
-              <p className="text-gray-500">Placeholder</p>
-            </div>
+        {/* Right Column: AI Decisions - Smaller width */}
+        <div className="w-80 bg-white border-l border-gray-200 flex flex-col overflow-hidden min-h-0">
+          <div className="p-4 border-b border-gray-200 shrink-0">
+            <h2 className="text-lg font-semibold text-gray-900">Makoto Review:</h2>
           </div>
+          <div className="flex-1 overflow-auto p-6 min-h-0">
+            <p className="text-gray-500 text-center">Placeholder</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Bar */}
+      <div className="h-16 bg-white border-t border-gray-200 flex items-center justify-between px-6 shrink-0">
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg font-semibold text-gray-900">
+            {document.filename || 'Document Viewer'}
+          </h2>
+          <p className="text-sm text-gray-500">File ID: {document.file_id}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handlePrevious}
+            disabled={isFirst}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              isFirst
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Previous
+          </button>
+          <button
+            onClick={handleNext}
+            disabled={isLast}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              isLast
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Next
+          </button>
+          <button
+            onClick={() => navigate({ to: '/reviewer/queue' })}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+          >
+            Back to Queue
+          </button>
         </div>
       </div>
     </div>
