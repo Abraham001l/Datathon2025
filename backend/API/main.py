@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,6 +8,9 @@ from routes.view import router as view_router
 from routes.parse import router as parse_router
 from routes.top_agent import router as top_agent_router
 from services.database import verify_connection, close_database
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -53,13 +57,33 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS
+# Configure CORS - secure by default
+# Get allowed origins from environment variable, with safe defaults for development
+ALLOWED_ORIGINS_ENV = os.getenv("CORS_ALLOWED_ORIGINS", "")
+
+if ALLOWED_ORIGINS_ENV:
+    # Parse comma-separated origins from environment variable
+    allowed_origins = [origin.strip() for origin in ALLOWED_ORIGINS_ENV.split(",") if origin.strip()]
+else:
+    # Default to common development origins (safe for local development)
+    allowed_origins = [
+        "http://localhost:5173",  # Vite default port
+        "http://localhost:3000",  # React default port
+        "http://localhost:5174",  # Vite alternate port
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5174",
+    ]
+
+logger.info(f"CORS configured with allowed origins: {allowed_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=allowed_origins,  # Specific origins only - secure!
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],  # Explicit methods
+    allow_headers=["*"],  # Allow all headers (can be restricted further if needed)
+    expose_headers=["*"],  # Expose all headers in response
 )
 
 # Include routers
