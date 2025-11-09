@@ -8,6 +8,9 @@ interface BottomNavigationBarProps {
   viewMode: 'text' | 'image'
   onPrevious: () => void
   onNext: () => void
+  onPreviousCritical: () => void
+  onNextCritical: () => void
+  hasCriticalAnnotations: boolean
   isLoading: boolean
 }
 
@@ -19,6 +22,9 @@ export function BottomNavigationBar({
   viewMode,
   onPrevious,
   onNext,
+  onPreviousCritical,
+  onNextCritical,
+  hasCriticalAnnotations,
   isLoading,
 }: BottomNavigationBarProps) {
   const navigate = useNavigate()
@@ -48,6 +54,20 @@ export function BottomNavigationBar({
           className="px-4 py-2 text-sm font-medium rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Next {viewMode === 'text' ? 'Text' : 'Image'}
+        </button>
+        <button
+          onClick={onPreviousCritical}
+          disabled={!hasCriticalAnnotations || isLoading}
+          className="px-4 py-2 text-sm font-medium rounded-md bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Previous Critical
+        </button>
+        <button
+          onClick={onNextCritical}
+          disabled={!hasCriticalAnnotations || isLoading}
+          className="px-4 py-2 text-sm font-medium rounded-md bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Next Critical
         </button>
         <button
           onClick={() => navigate({ to: '/reviewer/queue' })}

@@ -31,6 +31,7 @@ interface ImageAnnotationData {
     violence: string
     racy: string
   }
+  classification?: string
 }
 
 function ReviewComponent() {
@@ -358,6 +359,41 @@ function ReviewComponent() {
     return viewMode === 'text' ? textAnnotations : allImageAnnotations
   }, [viewMode, textAnnotations, allImageAnnotations])
 
+  // Get list of critical annotation indices
+  const criticalAnnotationIndices = useMemo(() => {
+    return currentAnnotationsList
+      .map((annotation, index) => ({ annotation, index }))
+      .filter(({ annotation }) => {
+        if (!annotation.id) return false
+        
+        if (viewMode === 'text') {
+          const data = allBoundingBoxData.get(annotation.id)
+          if (!data) return false
+          const classification = data.classification
+          return (
+            classification === 'Highly Sensitive' ||
+            classification === 'Confidential' ||
+            classification === 'Unsafe' ||
+            classification === '' ||
+            !classification
+          )
+        } else {
+          // For image mode, check if classification exists and matches critical criteria
+          const data = allImageAnnotationsData.get(annotation.id)
+          if (!data) return false
+          const classification = data.classification
+          return (
+            classification === 'Highly Sensitive' ||
+            classification === 'Confidential' ||
+            classification === 'Unsafe' ||
+            classification === '' ||
+            !classification
+          )
+        }
+      })
+      .map(({ index }) => index)
+  }, [currentAnnotationsList, viewMode, allBoundingBoxData, allImageAnnotationsData])
+
   // Navigation helpers for bounding boxes
   const handlePrevious = () => {
     if (currentAnnotationsList.length === 0) return
@@ -397,6 +433,95 @@ function ReviewComponent() {
     
     setCurrentBoxIndex(newIndex)
     const box = currentAnnotationsList[newIndex]
+    if (box?.id && pdfViewerRef.current) {
+      pdfViewerRef.current.selectAnnotationById(box.id)
+      if (viewMode === 'text') {
+        setSelectedAnnotationId(box.id)
+        setSelectedImageAnnotationId(null)
+      } else {
+        setSelectedImageAnnotationId(box.id)
+        setSelectedAnnotationId(null)
+      }
+    }
+  }
+
+  // Navigation helpers for critical annotations
+  const handlePreviousCritical = () => {
+    if (criticalAnnotationIndices.length === 0) return
+    
+    // Find the current critical index position
+    let currentCriticalIndex = criticalAnnotationIndices.findIndex(idx => idx === currentBoxIndex)
+    
+    // If current annotation is not critical, find the previous critical annotation
+    if (currentCriticalIndex < 0) {
+      // Find the last critical annotation before the current index
+      const previousCritical = criticalAnnotationIndices
+        .filter(idx => idx < currentBoxIndex)
+        .sort((a, b) => b - a)[0]
+      
+      if (previousCritical !== undefined) {
+        currentCriticalIndex = criticalAnnotationIndices.indexOf(previousCritical)
+      } else {
+        // No previous critical, wrap to last
+        currentCriticalIndex = criticalAnnotationIndices.length
+      }
+    }
+    
+    let targetIndex: number
+    if (currentCriticalIndex <= 0) {
+      // Wrap to last critical annotation
+      targetIndex = criticalAnnotationIndices[criticalAnnotationIndices.length - 1]
+    } else {
+      // Go to previous critical annotation
+      targetIndex = criticalAnnotationIndices[currentCriticalIndex - 1]
+    }
+    
+    setCurrentBoxIndex(targetIndex)
+    const box = currentAnnotationsList[targetIndex]
+    if (box?.id && pdfViewerRef.current) {
+      pdfViewerRef.current.selectAnnotationById(box.id)
+      if (viewMode === 'text') {
+        setSelectedAnnotationId(box.id)
+        setSelectedImageAnnotationId(null)
+      } else {
+        setSelectedImageAnnotationId(box.id)
+        setSelectedAnnotationId(null)
+      }
+    }
+  }
+
+  const handleNextCritical = () => {
+    if (criticalAnnotationIndices.length === 0) return
+    
+    // Find the current critical index position
+    let currentCriticalIndex = criticalAnnotationIndices.findIndex(idx => idx === currentBoxIndex)
+    
+    // If current annotation is not critical, find the next critical annotation
+    if (currentCriticalIndex < 0) {
+      // Find the first critical annotation after the current index
+      const nextCritical = criticalAnnotationIndices
+        .filter(idx => idx > currentBoxIndex)
+        .sort((a, b) => a - b)[0]
+      
+      if (nextCritical !== undefined) {
+        currentCriticalIndex = criticalAnnotationIndices.indexOf(nextCritical)
+      } else {
+        // No next critical, wrap to first
+        currentCriticalIndex = criticalAnnotationIndices.length - 1
+      }
+    }
+    
+    let targetIndex: number
+    if (currentCriticalIndex < 0 || currentCriticalIndex >= criticalAnnotationIndices.length - 1) {
+      // Wrap to first critical annotation
+      targetIndex = criticalAnnotationIndices[0]
+    } else {
+      // Go to next critical annotation
+      targetIndex = criticalAnnotationIndices[currentCriticalIndex + 1]
+    }
+    
+    setCurrentBoxIndex(targetIndex)
+    const box = currentAnnotationsList[targetIndex]
     if (box?.id && pdfViewerRef.current) {
       pdfViewerRef.current.selectAnnotationById(box.id)
       if (viewMode === 'text') {
@@ -556,6 +681,9 @@ function ReviewComponent() {
         viewMode={viewMode}
         onPrevious={handlePrevious}
         onNext={handleNext}
+        onPreviousCritical={handlePreviousCritical}
+        onNextCritical={handleNextCritical}
+        hasCriticalAnnotations={criticalAnnotationIndices.length > 0}
         isLoading={isLoading}
       />
     </div>

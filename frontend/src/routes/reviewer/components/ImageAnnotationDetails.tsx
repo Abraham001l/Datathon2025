@@ -13,6 +13,7 @@ interface ImageAnnotationData {
     violence: string
     racy: string
   }
+  classification?: string
 }
 
 interface ImageAnnotationDetailsProps {
