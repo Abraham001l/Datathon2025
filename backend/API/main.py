@@ -82,17 +82,35 @@ else:
         if frontend_origin and frontend_origin not in allowed_origins:
             allowed_origins.append(frontend_origin)
             logger.info(f"Added frontend origin from environment: {frontend_origin}")
-
+    
 logger.info(f"CORS configured with allowed origins: {allowed_origins}")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,  # Specific origins only - secure!
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],  # Explicit methods
-    allow_headers=["*"],  # Allow all headers (can be restricted further if needed)
-    expose_headers=["*"],  # Expose all headers in response
-)
+# Check if we should use a more permissive CORS for development/hosting
+# This allows any origin from the same hostname (useful when frontend/backend on same server)
+USE_PERMISSIVE_CORS = os.getenv("USE_PERMISSIVE_CORS", "").lower() in ("true", "1", "yes")
+
+if USE_PERMISSIVE_CORS:
+    # Use regex to allow any origin from same hostname pattern
+    # This is less secure but useful for development/hosting scenarios
+    logger.warning("Using permissive CORS mode - allowing same-hostname origins")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|\d+\.\d+\.\d+\.\d+)(:\d+)?",  # Allow localhost, 127.0.0.1, or IP addresses
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+    )
+else:
+    # Use explicit origins only (more secure)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,  # Specific origins only - secure!
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],  # Explicit methods
+        allow_headers=["*"],  # Allow all headers (can be restricted further if needed)
+        expose_headers=["*"],  # Expose all headers in response
+    )
 
 # Include routers
 app.include_router(view_router)
