@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,20 +17,26 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+async def verify_connection_async():
+    """Verify MongoDB connection in background without blocking."""
+    try:
+        # Run the blocking verify_connection in a thread pool (non-blocking)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, verify_connection)
+        logger.info("Background MongoDB connection verification: Success")
+    except Exception as e:
+        logger.warning(f"Background MongoDB connection verification failed: {str(e)}")
+        logger.warning("Database operations will attempt connection on first use")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     # Startup
     logger.info("Application startup: Document Upload API is starting")
     
-    try:
-        verify_connection()
-        logger.info("Startup complete: All systems ready")
-    except Exception as e:
-        logger.critical(f"Startup failed: MongoDB connection verification failed - {str(e)}")
-        logger.critical("Application will continue but database operations may fail")
-        # Don't raise - allow the app to start but log the error
-        # In production, you might want to raise here to prevent startup
+    # Start MongoDB verification in background (non-blocking)
+    asyncio.create_task(verify_connection_async())
+    logger.info("Startup complete: API ready (MongoDB connection verifying in background)")
     
     yield
     

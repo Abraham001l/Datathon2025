@@ -16,6 +16,7 @@
     "@tanstack/react-router": "^1.134.15",
     "@tanstack/router-devtools": "^1.134.15",
     "@tanstack/router-vite-plugin": "^1.134.15",
+    "motion": "^12.23.24",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },

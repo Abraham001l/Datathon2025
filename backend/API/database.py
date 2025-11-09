@@ -75,9 +75,40 @@ def get_database():
     
     if client is None:
         logger.debug("Creating new MongoDB connection")
-        client = MongoClient(CONNECTION_STRING)
-        db = client['document_sensitivity_db']
-        fs = gridfs.GridFS(db)
+        
+        # Check if credentials are set
+        if not MONGO_USERNAME or not MONGO_PASSWORD:
+            logger.error("MongoDB credentials not found in environment variables")
+            raise ValueError("MONGODB_USER and MONGODB_PASS must be set in environment variables")
+        
+        try:
+            # Create client with reasonable timeout
+            client = MongoClient(CONNECTION_STRING, serverSelectionTimeoutMS=10000)
+            db = client['document_sensitivity_db']
+            fs = gridfs.GridFS(db)
+            
+            # Verify connection works (this will raise if connection fails)
+            client.admin.command('ping')
+            logger.info("MongoDB connection established successfully")
+        except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+            logger.error(f"Failed to establish MongoDB connection: {str(e)}")
+            # Clean up failed client
+            if client is not None:
+                try:
+                    client.close()
+                except:
+                    pass
+                client = None
+            raise ConnectionFailure(f"Unable to connect to MongoDB: {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error establishing MongoDB connection: {str(e)}", exc_info=True)
+            if client is not None:
+                try:
+                    client.close()
+                except:
+                    pass
+                client = None
+            raise
     
     return db, fs
 

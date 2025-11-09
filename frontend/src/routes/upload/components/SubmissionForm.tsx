@@ -1,19 +1,17 @@
 import { FileUpload } from './FileUpload'
 
 interface SubmissionFormProps {
-	selectedFile: string
-	selectedFileObject: File | null
+	selectedFiles: File[]
 	projectSpecs: string
 	isSubmitting: boolean
 	isUploading: boolean
-	onFileSelect: (file: File | null) => void
+	onFileSelect: (files: File[]) => void
 	onProjectSpecsChange: (value: string) => void
 	onSubmit: () => void
 }
 
 export function SubmissionForm({
-	selectedFile,
-	selectedFileObject,
+	selectedFiles,
 	projectSpecs,
 	isSubmitting,
 	isUploading,
@@ -24,20 +22,20 @@ export function SubmissionForm({
 	const isDisabled =
 		isSubmitting ||
 		isUploading ||
-		(!selectedFile && !selectedFileObject)
+		selectedFiles.length === 0
 
 	return (
-		<div className='bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700'>
-			<div className='p-4 border-b border-gray-200 dark:border-gray-700'>
-				<h2 className='text-lg font-semibold text-gray-900 dark:text-white'>Upload Document</h2>
+		<div className='bg-white rounded-lg shadow-sm border border-gray-200'>
+			<div className='p-4 border-b border-gray-200'>
+				<h2 className='text-lg font-semibold text-gray-900'>Upload Document</h2>
 			</div>
 			<div className='p-4 space-y-4'>
 				{/* File Selection */}
-				<FileUpload selectedFile={selectedFileObject} onFileSelect={onFileSelect} />
+				<FileUpload selectedFiles={selectedFiles} onFileSelect={onFileSelect} />
 
 				{/* Project Specifications (Optional) */}
 				<div>
-					<label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+					<label className='block text-sm font-medium text-gray-700 mb-2'>
 						Project Specifications (Optional)
 					</label>
 					<textarea
@@ -45,7 +43,7 @@ export function SubmissionForm({
 						onChange={(e) => onProjectSpecsChange(e.target.value)}
 						placeholder='Describe the project context and any relevant details...'
 						rows={4}
-						className='w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white'
+						className='w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900'
 					/>
 				</div>
 
@@ -55,7 +53,11 @@ export function SubmissionForm({
 					disabled={isDisabled}
 					className='w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-4 py-2 rounded-md text-sm font-medium transition-colors'
 				>
-					{isUploading ? 'Uploading...' : isSubmitting ? 'Submitting...' : 'Upload Document'}
+					{isUploading 
+						? `Uploading ${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''}...` 
+						: isSubmitting 
+						? 'Submitting...' 
+						: `Upload ${selectedFiles.length > 0 ? `${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''}` : 'Document'}`}
 				</button>
 			</div>
 		</div>

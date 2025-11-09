@@ -22,7 +22,7 @@ async def upload_file_to_gridfs(
     description: Optional[str] = None,
     category: Optional[str] = None,
     status: Optional[str] = "pending_classification",
-    ai_classified_sensitivity: Optional[str] = "unclassified"
+    ai_classified_sensitivity: Optional[str] = None
 ) -> tuple[str, bool]:
     """
     Upload file contents to GridFS. If a file with the same filename exists, it will be updated.
@@ -102,51 +102,101 @@ def upload_bounding_boxes(
     
     Returns:
         The ID of the inserted bounding boxes document as string
+    
+    Raises:
+        ValueError: If extracted_data is missing required keys
+        Exception: For database errors
     """
-    # Get database instance
-    db, _ = get_database()
+    logger.debug(f"Uploading bounding boxes for file: {filename}, pdf_file_id: {pdf_file_id}")
     
-    # Prepare bounding boxes data for storage
-    pages_data = []
-    for page_idx, page_data in enumerate(extracted_data['pages']):
-        page_num = page_data['page_number']
+    try:
+        # Validate extracted_data structure
+        if not isinstance(extracted_data, dict):
+            raise ValueError(f"extracted_data must be a dict, got {type(extracted_data)}")
         
-        # Get page text
-        block_texts = [ann['text'] for ann in page_data['text_annotations'] if ann.get('type') == 'block' and ann.get('text')]
-        if block_texts:
-            page_text = "\n".join(block_texts)
-        else:
-            page_text = "\n".join([ann['text'] for ann in page_data['text_annotations'] if ann.get('text')])
+        if 'pages' not in extracted_data:
+            raise ValueError("extracted_data is missing 'pages' key")
+        if 'full_text' not in extracted_data:
+            logger.warning("extracted_data is missing 'full_text' key, using empty string")
+            extracted_data['full_text'] = ''
+        if 'images' not in extracted_data:
+            logger.warning("extracted_data is missing 'images' key, using empty list")
+            extracted_data['images'] = []
         
-        pages_data.append({
-            'page_number': page_num,
-            'text': page_text,
-            'bounding_boxes': page_data['text_annotations'],
-            'dimensions': page_data['dimension']
-        })
-    
-    # Prepare bounding boxes document
-    bounding_boxes_doc = {
-        'pdf_file_id': pdf_file_id,
-        'filename': filename,
-        'full_text': extracted_data['full_text'],
-        'pages': pages_data,
-        'images': extracted_data['images'],
-        'summary': {
-            'total_pages': len(extracted_data['pages']),
-            'total_text_annotations': sum(len(p['text_annotations']) for p in extracted_data['pages']),
-            'total_images': len(extracted_data['images']),
-            'full_text_length': len(extracted_data['full_text'])
+        logger.debug(f"Processing {len(extracted_data['pages'])} pages for bounding boxes")
+        
+        # Get database instance
+        db, _ = get_database()
+        logger.debug("Database connection established")
+        
+        # Prepare bounding boxes data for storage
+        pages_data = []
+        for page_idx, page_data in enumerate(extracted_data['pages']):
+            try:
+                page_num = page_data.get('page_number', page_idx + 1)
+                
+                # Get page text
+                text_annotations = page_data.get('text_annotations', [])
+                block_texts = [ann['text'] for ann in text_annotations if ann.get('type') == 'block' and ann.get('text')]
+                if block_texts:
+                    page_text = "\n".join(block_texts)
+                else:
+                    page_text = "\n".join([ann['text'] for ann in text_annotations if ann.get('text')])
+                
+                pages_data.append({
+                    'page_number': page_num,
+                    'text': page_text,
+                    'bounding_boxes': text_annotations,
+                    'dimensions': page_data.get('dimension', {})
+                })
+            except Exception as e:
+                logger.error(f"Error processing page {page_idx}: {str(e)}", exc_info=True)
+                raise
+        
+        logger.debug(f"Processed {len(pages_data)} pages")
+        
+        # Prepare bounding boxes document
+        bounding_boxes_doc = {
+            'pdf_file_id': pdf_file_id,
+            'filename': filename,
+            'full_text': extracted_data.get('full_text', ''),
+            'pages': pages_data,
+            'images': extracted_data.get('images', []),
+            'summary': {
+                'total_pages': len(extracted_data['pages']),
+                'total_text_annotations': sum(len(p.get('text_annotations', [])) for p in extracted_data['pages']),
+                'total_images': len(extracted_data.get('images', [])),
+                'full_text_length': len(extracted_data.get('full_text', ''))
+            }
         }
-    }
-    
-    # Store bounding boxes in MongoDB collection
-    bounding_boxes_collection = db['bounding_boxes']
-    bounding_boxes_result = bounding_boxes_collection.insert_one(bounding_boxes_doc)
-    bounding_boxes_id = str(bounding_boxes_result.inserted_id)
-    
-    logger.info(f"Bounding boxes uploaded successfully for file: {filename}, bounding_boxes_id: {bounding_boxes_id}")
-    return bounding_boxes_id
+        
+        logger.debug("Storing bounding boxes in MongoDB collection")
+        # Store bounding boxes in MongoDB collection
+        bounding_boxes_collection = db['bounding_boxes']
+        
+        # Update or insert bounding boxes document (upsert based on filename)
+        result = bounding_boxes_collection.update_one(
+            {'filename': filename},
+            {'$set': bounding_boxes_doc},
+            upsert=True
+        )
+        
+        # Get the document ID
+        bounding_boxes_doc_db = bounding_boxes_collection.find_one({'filename': filename})
+        if not bounding_boxes_doc_db:
+            raise ValueError(f"Failed to retrieve bounding boxes document for filename: {filename}")
+        
+        bounding_boxes_id = str(bounding_boxes_doc_db['_id'])
+        logger.info(f"Bounding boxes uploaded successfully for file: {filename}, bounding_boxes_id: {bounding_boxes_id}")
+        return bounding_boxes_id
+        
+    except ValueError as e:
+        logger.error(f"Validation error in upload_bounding_boxes: {str(e)}")
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading bounding boxes for {filename}: {str(e)}", exc_info=True)
+        logger.error(f"Exception type: {type(e).__name__}")
+        raise
 
 
 @router.post("/document")

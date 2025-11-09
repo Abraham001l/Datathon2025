@@ -4,8 +4,9 @@ import { apiService } from './api'
 import { useToast } from './hooks/useToast'
 import { ToastContainer } from './components/ToastContainer'
 import { DashboardHeader } from './components/DashboardHeader'
-import { SubmissionForm } from './components/SubmissionForm'
+import { UploadModal } from './components/UploadModal'
 import { DocumentsTable } from './components/DocumentsTable'
+import { UploadProgressIndicator, type FileUploadStatus } from './components/UploadProgressIndicator'
 import type { Document } from './types'
 
 export const Route = createFileRoute('/upload/')({
@@ -13,13 +14,14 @@ export const Route = createFileRoute('/upload/')({
 })
 
 function UploadComponent() {
-	const [selectedFile, setSelectedFile] = useState<string>('')
-	const [selectedFileObject, setSelectedFileObject] = useState<File | null>(null)
+	const [selectedFiles, setSelectedFiles] = useState<File[]>([])
 	const [projectSpecs, setProjectSpecs] = useState<string>('')
 	const [isSubmitting, setIsSubmitting] = useState(false)
 	const [isUploading, setIsUploading] = useState(false)
+	const [uploadingFiles, setUploadingFiles] = useState<FileUploadStatus[]>([])
 	const [documents, setDocuments] = useState<Document[]>([])
 	const [isLoadingDocuments, setIsLoadingDocuments] = useState(true)
+	const [isModalOpen, setIsModalOpen] = useState(false)
 
 	const { toasts, removeToast, success, error, info } = useToast()
 
@@ -43,101 +45,168 @@ function UploadComponent() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [])
 
+	const handleUploadClick = () => {
+		// Open modal immediately
+		setIsModalOpen(true)
+	}
+
+	const handleModalClose = () => {
+		if (!isUploading) {
+			setIsModalOpen(false)
+			// Clear files when modal is closed (unless uploading)
+			if (!isUploading) {
+				setSelectedFiles([])
+				setProjectSpecs('')
+			}
+		}
+	}
+
 	const handleSubmitDocument = async () => {
-		// Validate that we have a file to upload
-		if (!selectedFileObject) {
-			error('No File Selected', 'Please select a file to upload')
+		// Validate that we have files to upload
+		if (selectedFiles.length === 0) {
+			error('No Files Selected', 'Please select at least one file to upload')
 			return
 		}
+
+		// Store files to upload before clearing
+		const filesToUpload = [...selectedFiles]
+		
+		// Clear files immediately when upload starts
+		setSelectedFiles([])
+		setProjectSpecs('')
+		setIsModalOpen(false)
 
 		try {
 			setIsSubmitting(true)
 			setIsUploading(true)
 
+			// Initialize upload status for all files
+			const initialStatus: FileUploadStatus[] = filesToUpload.map((file) => ({
+				filename: file.name,
+				status: 'uploading',
+			}))
+			setUploadingFiles(initialStatus)
+
 			// Show uploading toast
-			const filename = selectedFileObject.name
-			info('Uploading...', `Uploading ${filename}...`)
+			const fileCount = filesToUpload.length
+			info('Uploading...', `Uploading ${fileCount} file${fileCount > 1 ? 's' : ''}...`)
 
-			// Upload the document asynchronously
-			const uploadResponse = await apiService.uploadDocument(selectedFileObject)
+			// Upload all files in parallel
+			const uploadPromises = filesToUpload.map(async (file) => {
+				try {
+					const uploadResponse = await apiService.uploadDocument(file)
+					
+					// Update status to success
+					setUploadingFiles((prev) =>
+						prev.map((f) =>
+							f.filename === file.name
+								? { filename: file.name, status: 'success' as const }
+								: f
+						)
+					)
 
-			if (uploadResponse.status !== 'success') {
-				throw new Error(`File upload failed: ${uploadResponse.message || 'Unknown error'}`)
-			}
+					return {
+						filename: file.name,
+						success: uploadResponse.status === 'success',
+						error: uploadResponse.status !== 'success' ? uploadResponse.message : undefined,
+					}
+				} catch (err) {
+					// Update status to error
+					const errorMessage = err instanceof Error ? err.message : String(err)
+					setUploadingFiles((prev) =>
+						prev.map((f) =>
+							f.filename === file.name
+								? { filename: file.name, status: 'error' as const, error: errorMessage }
+								: f
+						)
+					)
 
-			setIsUploading(false)
+					return {
+						filename: file.name,
+						success: false,
+						error: errorMessage,
+					}
+				}
+			})
 
-			// Refresh documents list after successful upload
+			// Wait for all uploads to complete
+			const uploadResults = await Promise.all(uploadPromises)
+
+			// Wait a bit for animations to complete before clearing
+			setTimeout(() => {
+				setIsUploading(false)
+				setUploadingFiles([])
+			}, 2000) // Wait 2 seconds to allow success animations to show
+
+			// Refresh documents list after uploads
 			await fetchDocuments()
 
-			// Show success toast with filename
-			success('Upload Successful', `Upload of ${filename} successful`)
+			// Show success/error toasts
+			const successful = uploadResults.filter((r) => r.success)
+			const failed = uploadResults.filter((r) => !r.success)
 
-			// Reset form
-			setSelectedFile('')
-			setSelectedFileObject(null)
-			setProjectSpecs('')
-
-			// Submit document (placeholder for now - only if projectSpecs provided)
-			if (projectSpecs.trim()) {
-				try {
-					const response = await apiService.submitDocument(uploadResponse.filepath, projectSpecs, '')
-					if (response.status !== 'success') {
-						console.warn('Document submission failed:', response.message)
-					}
-				} catch (submitErr) {
-					// Don't show error for submission failure since upload was successful
-					console.warn('Document submission failed:', submitErr)
+			if (successful.length > 0) {
+				if (successful.length === filesToUpload.length) {
+					// All files uploaded successfully
+					success(
+						'Upload Successful',
+						`Successfully uploaded ${successful.length} file${successful.length > 1 ? 's' : ''}`
+					)
+				} else {
+					// Some files uploaded successfully
+					success(
+						'Partial Upload Success',
+						`Successfully uploaded ${successful.length} of ${filesToUpload.length} files`
+					)
 				}
+			}
+
+			if (failed.length > 0) {
+				const failedNames = failed.map((f) => f.filename).join(', ')
+				error('Some Uploads Failed', `Failed to upload ${failed.length} file(s): ${failedNames}`)
 			}
 		} catch (err: unknown) {
 			setIsUploading(false)
-			console.error('Failed to upload document:', err)
-			const errorMsg = `Failed to upload document: ${err instanceof Error ? err.message : String(err)}. Please try again.`
+			setUploadingFiles([])
+			console.error('Failed to upload documents:', err)
+			const errorMsg = `Failed to upload documents: ${err instanceof Error ? err.message : String(err)}. Please try again.`
 			error('Upload Failed', errorMsg)
 		} finally {
 			setIsSubmitting(false)
 		}
 	}
 
-	const handleFileSelect = (file: File | null) => {
-		if (file) {
-			setSelectedFileObject(file)
-			setSelectedFile('') // Clear any pre-selected file
-		} else {
-			setSelectedFileObject(null)
-		}
+	const handleFileSelect = (files: File[]) => {
+		setSelectedFiles(files)
 	}
 
 	return (
-		<div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
+		<div className='h-screen flex flex-col bg-gray-50'>
 			<ToastContainer toasts={toasts} onClose={removeToast} />
+			<UploadProgressIndicator uploadingFiles={uploadingFiles} />
 			<DashboardHeader />
 
-			<div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6'>
-				<div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
-					{/* Document Submission */}
-					<div className='lg:col-span-1'>
-						<SubmissionForm
-							selectedFile={selectedFile}
-							selectedFileObject={selectedFileObject}
-							projectSpecs={projectSpecs}
-							isSubmitting={isSubmitting}
-							isUploading={isUploading}
-							onFileSelect={handleFileSelect}
-							onProjectSpecsChange={setProjectSpecs}
-							onSubmit={handleSubmitDocument}
-						/>
-					</div>
-
-					{/* Documents Table */}
-					<div className='lg:col-span-2'>
-						<DocumentsTable documents={documents} isLoading={isLoadingDocuments} />
-					</div>
-				</div>
+			{/* Full width documents table - takes up remaining space */}
+			<div className='flex-1 overflow-hidden'>
+				<DocumentsTable 
+					documents={documents} 
+					isLoading={isLoadingDocuments}
+					onUploadClick={handleUploadClick}
+				/>
 			</div>
 
-			{/* TODO: Implement flag details modal */}
+			{/* Upload Modal */}
+			<UploadModal
+				isOpen={isModalOpen}
+				selectedFiles={selectedFiles}
+				projectSpecs={projectSpecs}
+				isSubmitting={isSubmitting}
+				isUploading={isUploading}
+				onClose={handleModalClose}
+				onFileSelect={handleFileSelect}
+				onProjectSpecsChange={setProjectSpecs}
+				onSubmit={handleSubmitDocument}
+			/>
 		</div>
 	)
 }
