@@ -1,7 +1,9 @@
 import { Link, useLocation } from '@tanstack/react-router'
+import { useSidebar } from '../contexts/SidebarContext'
 
 export function Navbar() {
   const location = useLocation()
+  const { isCollapsed } = useSidebar()
   
   const navItems = [
     { 
@@ -57,21 +59,11 @@ export function Navbar() {
   }
 
   return (
-    <aside className="w-48 bg-white shadow-lg border-r border-gray-200 flex flex-col h-screen fixed left-0 top-0">
-      {/* Logo/Brand */}
-      <div className="p-4 border-b border-gray-200">
-        <Link to="/" className="flex items-center space-x-2 group">
-          <img 
-            src="/hitatchi.png" 
-            alt="Hitachi" 
-            className="h-8 w-8 object-contain"
-          />
-          <span className="text-lg font-semibold text-gray-900 group-hover:text-gray-700 transition-colors">
-            Makoto
-          </span>
-        </Link>
-      </div>
-
+    <aside
+      className={`w-48 bg-white shadow-lg border-r border-gray-200 flex flex-col h-[calc(100vh-3.5rem)] fixed left-0 top-14 transition-transform duration-300 z-40 ${
+        isCollapsed ? '-translate-x-full' : 'translate-x-0'
+      }`}
+    >
       {/* Navigation Links */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {navItems.map((item) => {

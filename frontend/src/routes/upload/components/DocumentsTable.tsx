@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react'
+import { useState } from 'react'
 import type { Document } from '../types'
 
 interface DocumentsTableProps {
@@ -24,6 +25,8 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function DocumentsTable({ documents, isLoading }: DocumentsTableProps) {
+	const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set())
+
 	const formatFileSize = (bytes?: number): string => {
 		if (!bytes) return 'N/A'
 		if (bytes < 1024) return `${bytes} B`
@@ -40,11 +43,39 @@ export function DocumentsTable({ documents, isLoading }: DocumentsTableProps) {
 		}
 	}
 
+	const handleSelectAll = (checked: boolean) => {
+		if (checked) {
+			setSelectedDocuments(new Set(documents.map(doc => doc.file_id)))
+		} else {
+			setSelectedDocuments(new Set())
+		}
+	}
+
+	const handleSelectDocument = (fileId: string, checked: boolean) => {
+		const newSelected = new Set(selectedDocuments)
+		if (checked) {
+			newSelected.add(fileId)
+		} else {
+			newSelected.delete(fileId)
+		}
+		setSelectedDocuments(newSelected)
+	}
+
+	const isAllSelected = documents.length > 0 && selectedDocuments.size === documents.length
+	const isIndeterminate = selectedDocuments.size > 0 && selectedDocuments.size < documents.length
+
 	if (isLoading) {
 		return (
 			<table className='w-full'>
 				<thead className='bg-gray-50'>
 					<tr>
+						<th className='px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12'>
+							<input
+								type='checkbox'
+								className='rounded border-gray-300 text-blue-600 focus:ring-blue-500'
+								disabled
+							/>
+						</th>
 						<th className='px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
 							Filename
 						</th>
@@ -67,7 +98,7 @@ export function DocumentsTable({ documents, isLoading }: DocumentsTableProps) {
 				</thead>
 				<tbody>
 					<tr>
-						<td colSpan={6} className='px-4 py-8 text-center text-gray-500'>
+						<td colSpan={7} className='px-4 py-8 text-center text-gray-500'>
 							<motion.div
 								className='flex flex-col items-center justify-center gap-3'
 								initial={{ opacity: 0 }}
@@ -96,6 +127,17 @@ export function DocumentsTable({ documents, isLoading }: DocumentsTableProps) {
 		<table className='w-full'>
 			<thead className='bg-gray-50'>
 				<tr>
+					<th className='px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12'>
+						<input
+							type='checkbox'
+							className='rounded border-gray-300 text-blue-600 focus:ring-blue-500'
+							checked={isAllSelected}
+							ref={(input) => {
+								if (input) input.indeterminate = isIndeterminate
+							}}
+							onChange={(e) => handleSelectAll(e.target.checked)}
+						/>
+					</th>
 					<th className='px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
 						Filename
 					</th>
@@ -125,7 +167,7 @@ export function DocumentsTable({ documents, isLoading }: DocumentsTableProps) {
 							animate={{ opacity: 1 }}
 							exit={{ opacity: 0 }}
 						>
-							<td colSpan={6} className='px-4 py-8 text-center text-gray-500'>
+							<td colSpan={7} className='px-4 py-8 text-center text-gray-500'>
 								No documents found in the database.
 							</td>
 						</motion.tr>
@@ -147,6 +189,18 @@ export function DocumentsTable({ documents, isLoading }: DocumentsTableProps) {
 								}}
 								className='cursor-default bg-white'
 							>
+								<td className='px-4 py-4'>
+									<input
+										type='checkbox'
+										className='rounded border-gray-300 text-blue-600 focus:ring-blue-500'
+										checked={selectedDocuments.has(doc.file_id)}
+										onChange={(e) => {
+											e.stopPropagation()
+											handleSelectDocument(doc.file_id, e.target.checked)
+										}}
+										onClick={(e) => e.stopPropagation()}
+									/>
+								</td>
 								<td className='px-4 py-4 text-sm font-medium text-gray-900'>
 									{doc.filename || 'Unknown'}
 								</td>
