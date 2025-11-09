@@ -13,10 +13,7 @@ from dotenv import load_dotenv
 from google.cloud import documentai
 from google.api_core import exceptions as google_exceptions
 import sys
-try:
-    from PyPDF2 import PdfReader, PdfWriter  # PyPDF2 (standard import)
-except ImportError:
-    from pypdf import PdfReader, PdfWriter  # Alternative import name
+from PyPDF2 import PdfReader, PdfWriter  # PyPDF2 (standard import)
 from pdfparse import extract_text_with_boxes
 
 # Add parent directory to path to import from routes

@@ -26,6 +26,9 @@ async def upload_file_to_gridfs(
 ) -> tuple[str, bool]:
     """
     Upload file contents to GridFS. If a file with the same filename exists, it will be updated.
+    When updating, this function will:
+    - Delete old bounding boxes document
+    - Delete old GridFS file and all its chunks
     
     Args:
         file_contents: The file contents as bytes
@@ -55,10 +58,64 @@ async def upload_file_to_gridfs(
     is_update = existing_file is not None
     
     if is_update:
-        logger.info(f"File with filename '{filename}' already exists. Updating...")
-        # Delete the old file
-        fs.delete(existing_file._id)
-        logger.debug(f"Deleted old file with id: {existing_file._id}")
+        logger.info(f"File with filename '{filename}' already exists. Cleaning up old data...")
+        old_file_id = existing_file._id
+        
+        # Delete old bounding boxes document
+        try:
+            bounding_boxes_collection = db['bounding_boxes']
+            delete_result = bounding_boxes_collection.delete_one({'filename': filename})
+            if delete_result.deleted_count > 0:
+                logger.info(f"Deleted old bounding boxes document for filename: {filename}")
+            else:
+                logger.debug(f"No bounding boxes document found for filename: {filename}")
+        except Exception as e:
+            logger.warning(f"Error deleting old bounding boxes: {str(e)}")
+            # Continue with file deletion even if bounding boxes deletion fails
+        
+        # Delete the old GridFS file (this should automatically delete from fs.files and all chunks from fs.chunks)
+        try:
+            if fs.exists(old_file_id):
+                fs.delete(old_file_id)
+                logger.info(f"Deleted old GridFS file with id: {old_file_id}")
+            else:
+                logger.warning(f"Old GridFS file with id {old_file_id} does not exist, skipping deletion")
+            
+            # Verify cleanup: check for orphaned chunks (safety check)
+            chunks_collection = db['fs.chunks']
+            chunks_count = chunks_collection.count_documents({'files_id': old_file_id})
+            if chunks_count > 0:
+                logger.warning(f"Found {chunks_count} orphaned chunks for file_id {old_file_id}, cleaning up...")
+                chunks_collection.delete_many({'files_id': old_file_id})
+                logger.info(f"Deleted {chunks_count} orphaned chunks")
+            else:
+                logger.debug(f"All chunks for file_id {old_file_id} were properly deleted")
+            
+            # Verify fs.files entry was deleted (safety check)
+            files_collection = db['fs.files']
+            files_count = files_collection.count_documents({'_id': old_file_id})
+            if files_count > 0:
+                logger.warning(f"Found orphaned fs.files entry for file_id {old_file_id}, cleaning up...")
+                files_collection.delete_one({'_id': old_file_id})
+                logger.info(f"Deleted orphaned fs.files entry")
+            else:
+                logger.debug(f"fs.files entry for file_id {old_file_id} was properly deleted")
+                
+        except Exception as e:
+            logger.error(f"Error deleting old GridFS file: {str(e)}", exc_info=True)
+            # Try to clean up chunks and files manually as fallback
+            try:
+                chunks_collection = db['fs.chunks']
+                chunks_collection.delete_many({'files_id': old_file_id})
+                files_collection = db['fs.files']
+                files_collection.delete_one({'_id': old_file_id})
+                logger.info(f"Manually cleaned up chunks and files for file_id {old_file_id}")
+            except Exception as cleanup_error:
+                logger.error(f"Error in manual cleanup: {str(cleanup_error)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error deleting old file: {str(e)}"
+            )
     
     # Prepare metadata
     metadata = {
@@ -174,19 +231,17 @@ def upload_bounding_boxes(
         # Store bounding boxes in MongoDB collection
         bounding_boxes_collection = db['bounding_boxes']
         
-        # Update or insert bounding boxes document (upsert based on filename)
-        result = bounding_boxes_collection.update_one(
-            {'filename': filename},
-            {'$set': bounding_boxes_doc},
-            upsert=True
-        )
+        # Delete any existing bounding boxes for this filename first (should already be deleted by upload_file_to_gridfs, but ensure cleanup)
+        delete_result = bounding_boxes_collection.delete_one({'filename': filename})
+        if delete_result.deleted_count > 0:
+            logger.debug(f"Deleted existing bounding boxes document for filename: {filename}")
         
-        # Get the document ID
-        bounding_boxes_doc_db = bounding_boxes_collection.find_one({'filename': filename})
-        if not bounding_boxes_doc_db:
-            raise ValueError(f"Failed to retrieve bounding boxes document for filename: {filename}")
+        # Insert new bounding boxes document
+        result = bounding_boxes_collection.insert_one(bounding_boxes_doc)
+        if not result.inserted_id:
+            raise ValueError(f"Failed to insert bounding boxes document for filename: {filename}")
         
-        bounding_boxes_id = str(bounding_boxes_doc_db['_id'])
+        bounding_boxes_id = str(result.inserted_id)
         logger.info(f"Bounding boxes uploaded successfully for file: {filename}, bounding_boxes_id: {bounding_boxes_id}")
         return bounding_boxes_id
         
