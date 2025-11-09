@@ -72,7 +72,6 @@ Explanation: ..."""
 
     def run_doc(self, blocks):
         block_results = []
-        print("about to go")
         with ThreadPoolExecutor(max_workers=20) as executor:
             # Submitting blocks to executors
             future_to_block = {executor.submit(self.run, block): block for block in blocks}
@@ -85,7 +84,6 @@ Explanation: ..."""
                     block_results.append(response)
                 except Exception as e:
                     print(f"Prompt failed: {block}, Error: {e}")
-        print("finished")
         return block_results
                     
 
@@ -100,31 +98,6 @@ Explanation: ..."""
             data[f"response_{str(i)}"] = results[i][1]
         
         return data
-        
-    # def run_chain(self, old_text, classification, results):
-
-    #     with ThreadPoolExecutor(max_workers=5) as executor:
-    #         # Submitting prompts to executors
-    #         future_to_prompt = {executor.submit(self.vultr_llm.run, "Text:\n"+old_text+"\n"+prompt): prompt for prompt in self.tree[classification][:-1]}
-
-    #         # Collect responses as they complete
-    #         n_prompts = 0
-    #         for future in as_completed(future_to_prompt):
-    #             prompt = future_to_prompt[future]
-    #             try:
-    #                 response = future.result()
-    #                 results.append([prompt, response])
-    #             except Exception as e:
-    #                 print(f"Prompt failed: {prompt}, Error: {e}")
-    #             n_prompts += 1
-        
-    #     prompt = ""
-    #     for i in range(n_prompts):
-    #         prompt += results[-1-i][0]+"\n"+results[-1-i][1]+"\n"
-    #     prompt += self.tree[classification][-1]
-
-    #     response = self.vultr_llm.run(prompt)
-    #     results.append([self.tree[classification][-1], response])
 
     def run_chain(self, index, old_conversation, classification, results):
         prompt = f"""{old_conversation}
