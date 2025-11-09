@@ -1,7 +1,5 @@
 import type { Submission, Document, Flag } from './types'
-
-// API base URL - defaults to localhost:8000, can be overridden with environment variable
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+import { API_BASE_URL } from '../../utils/apiConfig'
 
 export const apiService = {
 	// TODO: Implement these methods when backend endpoints are available

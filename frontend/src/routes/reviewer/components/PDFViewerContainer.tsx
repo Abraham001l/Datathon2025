@@ -82,7 +82,6 @@ export function PDFViewerContainer({
             ref={pdfViewerRef}
             documentId={documentId}
             filename={document.filename}
-            apiBaseUrl={import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}
             onLoadComplete={onLoadComplete}
             annotations={annotations}
             onAnnotationSelected={handleAnnotationSelected}

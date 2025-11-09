@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import WebViewer from '@pdftron/webviewer'
+import { API_BASE_URL } from '../../utils/apiConfig'
 
 export const Route = createFileRoute('/gooftest/')({
   component: RouteComponent,
@@ -8,7 +9,6 @@ export const Route = createFileRoute('/gooftest/')({
 
 // Example PDF from the backend API
 const DOCUMENT_ID = '691064c2062c2bde4f3e2406'
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 interface WebViewerInstance {
   Core: {

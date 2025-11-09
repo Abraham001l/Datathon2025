@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import WebViewer from '@pdftron/webviewer'
+import { API_BASE_URL as DEFAULT_API_BASE_URL } from '../../../utils/apiConfig'
 
 export interface WebViewerInstance {
   Core: {
@@ -168,7 +169,7 @@ interface PDFViewerProps {
 export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
   documentUrl,
   documentId,
-  apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
+  apiBaseUrl = DEFAULT_API_BASE_URL,
   filename,
   onLoadStart,
   onLoadComplete,
