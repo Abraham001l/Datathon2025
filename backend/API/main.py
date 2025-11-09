@@ -3,10 +3,9 @@ import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from routes.upload import router as upload_router
 from routes.view import router as view_router
 from routes.parse import router as parse_router
-from database import verify_connection, close_database
+from services.database import verify_connection, close_database
 
 # Configure logging
 logging.basicConfig(
@@ -63,7 +62,6 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(upload_router)
 app.include_router(view_router)
 app.include_router(parse_router)
 
