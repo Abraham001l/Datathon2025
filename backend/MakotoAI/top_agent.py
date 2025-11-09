@@ -17,10 +17,10 @@ class ToP_Agent:
         "Text includes internal identifiers, access credentials, or sensitive authentication data.",
         "Text explicitly mentions terms like 'restricted', 'classified', 'top secret', or similar sensitivity indicators.",
         """Classify if text is Sensitive/Highly Sensitive, and give a confidence score.
-        Format for output:
-        Yes/No: 0 or 1
-        Confidence: 0-1
-        Explanation: ..."""
+Format for output:
+Yes/No: 0 or 1
+Confidence: 0-1
+Explanation: ..."""
         ]
         self.confidential_chain = [
         "Text contains references to internal company communications, such as internal memos, meeting notes, or strategic discussions.",
@@ -28,10 +28,10 @@ class ToP_Agent:
         "Text contains customer information such as names, emails, addresses, or account details shared in a non-public context.",
         """Text includes non-public business information, such as revenue, costs, pricing models, or product roadmaps.""",
         """Classify if text is Confidential, and give a confidence score.
-        Format for output:
-        Yes/No: 0 or 1
-        Confidence: 0-1
-        Explanation: ..."""
+Format for output:
+Yes/No: 0 or 1
+Confidence: 0-1
+Explanation: ..."""
         ]
         self.public_chain = [
         "Text contains marketing or promotional content such as slogans, product descriptions, advertisements, or customer success stories.",
@@ -39,10 +39,10 @@ class ToP_Agent:
         "Text comes from a public website, press release, social media post, or other open-access communication.",
         "Text includes generic, non-confidential information or references to common industry terms, technologies, or concepts that are already public.",
         """Classify if text is Public, and give a confidence score.
-        Format for output:
-        Yes/No: 0 or 1
-        Confidence: 0-1
-        Explanation: ..."""
+Format for output:
+Yes/No: 0 or 1
+Confidence: 0-1
+Explanation: ..."""
         ]
         self.unsafe_chain = [
         "Text contains or references hate speech, discrimination, or derogatory language against any individual or group.",
@@ -50,36 +50,55 @@ class ToP_Agent:
         "Text discusses or promotes criminal activity, terrorism, or illegal actions such as hacking, fraud, or weapon use.",
         "Text contains political propaganda, extremist content, or cyber-threat information such as phishing, malware, or system intrusion attempts.",
         """Classify if text is Unsafe Content, and give a confidence score.
-        Format for output:
-        Yes/No: 0 or 1
-        Confidence: 0-1
-        Explanation: ..."""
+Format for output:
+Yes/No: 0 or 1
+Confidence: 0-1
+Explanation: ..."""
         ]
         self.tree = [self.sensitive_chain, self.confidential_chain, self.public_chain, self.unsafe_chain]
+    
+    def ai_chain_edit(self, tree_index):
+        pass
+
+    def human_chain_edit(self, tree_index, chain_index, new_text):
+        self.tree[tree_index][chain_index] = new_text
+
+    def human_chain_add(self, tree_index, new_text):
+        self.tree[tree_index].append(new_text)
+    
+    def human_chain_remove(self, tree_index, chain_index):
+        self.tree[tree_index].pop(chain_index)
 
     def run(self, text):
-        classification = self.pick_chain(text)
-        self.run_chain(index=0, old_conversation="", classification=classification)
+        results = []
+        classification = self.pick_chain(text, results)
+        self.run_chain(index=0, old_conversation=f"Text: {text}", classification=classification, results=results)
+
+        data = {}
+        for i in range(len(results)):
+            data[f"prompt_{str(i)}"] = results[i][0]
+            data[f"response_{str(i)}"] = results[i][1]
         
-    def run_chain(self, index, old_conversation, classification):
-        prompt = f"""Conversation History:
-        {old_conversation}
+        return data
         
-        New Task:
-        {self.tree[classification][index]}"""
+    def run_chain(self, index, old_conversation, classification, results):
+        prompt = f"""{old_conversation}
+        
+New Task:
+{self.tree[classification][index]}"""
 
         response = self.vultr_llm.run(prompt)
+        results.append([f"New Task:\n{self.tree[classification][index]}", response])
         conversation =  prompt + "\n" + response
 
         # Checking if finished iteration
         if index == len(self.tree[classification])-1:
-            print(conversation)
             return
         
         # Recursively running through chain
-        self.run_chain(index+1, conversation, classification)
+        self.run_chain(index+1, conversation, classification, results)
 
-    def pick_chain(self, text):
+    def pick_chain(self, text, results):
         prompt = f"""Classify the following text into the single most appropriate category:
 
         0 — Sensitive/Highly Sensitive: Contains PII (e.g., SSNs, account/credit card numbers) or proprietary schematics (e.g., defense or next-gen product designs).  
@@ -95,7 +114,7 @@ class ToP_Agent:
         """
 
         response = self.vultr_llm.run(prompt)
-        print(response)
+        results.append([prompt, response])
         return int(response.split()[1])
     
 
