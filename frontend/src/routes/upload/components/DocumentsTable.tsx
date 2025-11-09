@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react'
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import type { Document } from '../types'
 
 interface DocumentsTableProps {
@@ -26,24 +26,6 @@ function StatusBadge({ status }: { status: string }) {
 
 export function DocumentsTable({ documents, isLoading }: DocumentsTableProps) {
 	const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set())
-	const [openMenuId, setOpenMenuId] = useState<string | null>(null)
-	const menuRef = useRef<HTMLDivElement>(null)
-
-	// Close menu when clicking outside
-	useEffect(() => {
-		const handleClickOutside = (event: MouseEvent) => {
-			if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-				setOpenMenuId(null)
-			}
-		}
-
-		if (openMenuId) {
-			document.addEventListener('mousedown', handleClickOutside)
-			return () => {
-				document.removeEventListener('mousedown', handleClickOutside)
-			}
-		}
-	}, [openMenuId])
 
 	const formatFileSize = (bytes?: number): string => {
 		if (!bytes) return 'N/A'
@@ -112,13 +94,11 @@ export function DocumentsTable({ documents, isLoading }: DocumentsTableProps) {
 						<th className='px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
 							AI Sensitivity
 						</th>
-						<th className='px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12'>
-						</th>
 					</tr>
 				</thead>
 				<tbody>
 					<tr>
-						<td colSpan={8} className='px-4 py-8 text-center text-gray-500'>
+						<td colSpan={7} className='px-4 py-8 text-center text-gray-500'>
 							<motion.div
 								className='flex flex-col items-center justify-center gap-3'
 								initial={{ opacity: 0 }}
@@ -176,8 +156,6 @@ export function DocumentsTable({ documents, isLoading }: DocumentsTableProps) {
 					<th className='px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
 						AI Sensitivity
 					</th>
-					<th className='px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12'>
-					</th>
 				</tr>
 			</thead>
 			<tbody className='divide-y divide-gray-200'>
@@ -189,7 +167,7 @@ export function DocumentsTable({ documents, isLoading }: DocumentsTableProps) {
 							animate={{ opacity: 1 }}
 							exit={{ opacity: 0 }}
 						>
-							<td colSpan={8} className='px-4 py-8 text-center text-gray-500'>
+							<td colSpan={7} className='px-4 py-8 text-center text-gray-500'>
 								No documents found in the database.
 							</td>
 						</motion.tr>
@@ -250,65 +228,6 @@ export function DocumentsTable({ documents, isLoading }: DocumentsTableProps) {
 								</td>
 								<td className='px-4 py-4 text-sm text-gray-500'>
 									{doc.metadata?.ai_classified_sensitivity?.replace(/_/g, ' ') || 'N/A'}
-								</td>
-								<td className='px-4 py-4 text-sm text-gray-500 relative'>
-									<div ref={menuRef}>
-										<button
-											className='p-1 hover:bg-gray-100 rounded-md transition-colors'
-											onClick={(e) => {
-												e.stopPropagation()
-												setOpenMenuId(openMenuId === doc.file_id ? null : doc.file_id)
-											}}
-											title='More options'
-										>
-											<svg
-												className='w-5 h-5 text-gray-600'
-												fill='none'
-												stroke='currentColor'
-												viewBox='0 0 24 24'
-											>
-												<path
-													strokeLinecap='round'
-													strokeLinejoin='round'
-													strokeWidth={2}
-													d='M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z'
-												/>
-											</svg>
-										</button>
-										{openMenuId === doc.file_id && (
-											<div className='absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200'>
-												<div className='py-1'>
-													<button
-														className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'
-														onClick={(e) => {
-															e.stopPropagation()
-															setOpenMenuId(null)
-														}}
-													>
-														View Details
-													</button>
-													<button
-														className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'
-														onClick={(e) => {
-															e.stopPropagation()
-															setOpenMenuId(null)
-														}}
-													>
-														Download
-													</button>
-													<button
-														className='block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100'
-														onClick={(e) => {
-															e.stopPropagation()
-															setOpenMenuId(null)
-														}}
-													>
-														Delete
-													</button>
-												</div>
-											</div>
-										)}
-									</div>
 								</td>
 							</motion.tr>
 						))

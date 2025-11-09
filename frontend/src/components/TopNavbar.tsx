@@ -52,6 +52,36 @@ export function TopNavbar() {
             Makoto
           </span>
         </Link>
+
+        {/* Project Selection */}
+        <div className="ml-4 pl-4 border-l border-gray-300">
+          <div className="relative">
+            <select 
+              className="appearance-none text-sm font-medium text-gray-900 bg-transparent border-none outline-none cursor-pointer hover:text-gray-700 focus:outline-none pr-6 py-1"
+              defaultValue="datathon-documents"
+            >
+              <option value="datathon-documents">datathon-documents</option>
+              <option>Select Project</option>
+              <option>Project 1</option>
+              <option>Project 2</option>
+            </select>
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none">
+              <svg
+                className="w-4 h-4 text-gray-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Right Side */}

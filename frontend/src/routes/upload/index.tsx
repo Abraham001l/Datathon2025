@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
-import { motion } from 'motion/react'
+import { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
 import { apiService } from './api'
 import { useToast } from './hooks/useToast'
 import { ToastContainer } from './components/ToastContainer'
@@ -22,8 +22,27 @@ function UploadComponent() {
 	const [documents, setDocuments] = useState<Document[]>([])
 	const [isLoadingDocuments, setIsLoadingDocuments] = useState(true)
 	const [isModalOpen, setIsModalOpen] = useState(false)
+	const [isTableCollapsed, setIsTableCollapsed] = useState(false)
+	const [isMenuOpen, setIsMenuOpen] = useState(false)
+	const menuRef = useRef<HTMLDivElement>(null)
 
 	const { toasts, removeToast, success, error, info } = useToast()
+
+	// Close menu when clicking outside
+	useEffect(() => {
+		const handleClickOutside = (event: MouseEvent) => {
+			if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+				setIsMenuOpen(false)
+			}
+		}
+
+		if (isMenuOpen) {
+			document.addEventListener('mousedown', handleClickOutside)
+			return () => {
+				document.removeEventListener('mousedown', handleClickOutside)
+			}
+		}
+	}, [isMenuOpen])
 
 	// Function to fetch documents
 	const fetchDocuments = async () => {
@@ -224,7 +243,7 @@ function UploadComponent() {
 					animate={{ opacity: 1, y: 0 }}
 					transition={{ duration: 0.4, delay: 0.1 }}
 				>
-					<h1 className='text-3xl font-bold text-gray-900'>Documents in Database</h1>
+					<h1 className='text-3xl font-bold text-gray-900'>Upload Documents</h1>
 					<p className='mt-1 text-sm text-gray-600'>Upload and manage your documents</p>
 				</motion.div>
 
@@ -287,52 +306,133 @@ function UploadComponent() {
 				>
 					<div className='p-4 border-b border-gray-200'>
 						<div className='flex items-center justify-between'>
-							<motion.h2
-								className='text-lg font-semibold text-gray-900'
-								initial={{ opacity: 0 }}
-								animate={{ opacity: 1 }}
-								transition={{ duration: 0.3, delay: 0.3 }}
-							>
-								Documents
-								<span className='ml-2 text-sm font-normal text-gray-500'>
-									({documents.length} {documents.length === 1 ? 'document' : 'documents'})
-								</span>
-							</motion.h2>
-							{!isLoadingDocuments && (
-								<motion.button
-									onClick={handleUploadClick}
-									className='flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium'
-									whileHover={{ scale: 1.05 }}
-									whileTap={{ scale: 0.95 }}
-									transition={{ duration: 0.2 }}
-									initial={{ opacity: 0, scale: 0.9 }}
-									animate={{ opacity: 1, scale: 1 }}
+							<div className='flex items-center gap-2 flex-1'>
+								<button
+									onClick={() => setIsTableCollapsed(!isTableCollapsed)}
+									className='text-gray-500 hover:text-gray-700 transition-colors'
 								>
 									<svg
-										className='w-4 h-4'
+										className={`w-5 h-5 transition-transform ${isTableCollapsed ? 'rotate-0' : 'rotate-90'}`}
 										fill='none'
 										stroke='currentColor'
 										viewBox='0 0 24 24'
 									>
-										<path
-											strokeLinecap='round'
-											strokeLinejoin='round'
-											strokeWidth={2}
-											d='M12 4v16m8-8H4'
-										/>
+										<path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M9 5l7 7-7 7' />
 									</svg>
-									Upload
-								</motion.button>
-							)}
+								</button>
+								<motion.h2
+									className='text-lg font-semibold text-gray-900'
+									initial={{ opacity: 0 }}
+									animate={{ opacity: 1 }}
+									transition={{ duration: 0.3, delay: 0.3 }}
+								>
+									Documents
+									<span className='ml-2 text-sm font-normal text-gray-500'>
+										({documents.length} {documents.length === 1 ? 'document' : 'documents'})
+									</span>
+								</motion.h2>
+							</div>
+							<div className='flex items-center gap-2'>
+								{!isLoadingDocuments && (
+									<motion.button
+										onClick={handleUploadClick}
+										className='flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium'
+										whileHover={{ scale: 1.05 }}
+										whileTap={{ scale: 0.95 }}
+										transition={{ duration: 0.2 }}
+										initial={{ opacity: 0, scale: 0.9 }}
+										animate={{ opacity: 1, scale: 1 }}
+									>
+										<svg
+											className='w-4 h-4'
+											fill='none'
+											stroke='currentColor'
+											viewBox='0 0 24 24'
+										>
+											<path
+												strokeLinecap='round'
+												strokeLinejoin='round'
+												strokeWidth={2}
+												d='M12 4v16m8-8H4'
+											/>
+										</svg>
+										Upload
+									</motion.button>
+								)}
+								<div className='relative' ref={menuRef}>
+									<button
+										className='p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors'
+										onClick={() => setIsMenuOpen(!isMenuOpen)}
+										title='More options'
+									>
+										<svg
+											className='w-5 h-5'
+											fill='none'
+											stroke='currentColor'
+											viewBox='0 0 24 24'
+										>
+											<path
+												strokeLinecap='round'
+												strokeLinejoin='round'
+												strokeWidth={2}
+												d='M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z'
+											/>
+										</svg>
+									</button>
+									<AnimatePresence>
+										{isMenuOpen && (
+											<motion.div
+												initial={{ opacity: 0, y: -10 }}
+												animate={{ opacity: 1, y: 0 }}
+												exit={{ opacity: 0, y: -10 }}
+												className='absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200'
+											>
+												<div className='py-1'>
+													<button
+														className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'
+														onClick={() => setIsMenuOpen(false)}
+													>
+														Export Selected
+													</button>
+													<button
+														className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'
+														onClick={() => setIsMenuOpen(false)}
+													>
+														Delete Selected
+													</button>
+													<button
+														className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'
+														onClick={() => setIsMenuOpen(false)}
+													>
+														Refresh
+													</button>
+												</div>
+											</motion.div>
+										)}
+									</AnimatePresence>
+								</div>
+							</div>
 						</div>
 					</div>
 
-					<div className='overflow-x-auto'>
-						<DocumentsTable 
-							documents={documents} 
-							isLoading={isLoadingDocuments}
-						/>
-					</div>
+					<AnimatePresence>
+						{!isTableCollapsed && (
+							<motion.div
+								initial={{ height: 0, opacity: 0 }}
+								animate={{ height: 'auto', opacity: 1 }}
+								exit={{ height: 0, opacity: 0 }}
+								transition={{ duration: 0.3 }}
+								className='overflow-hidden'
+							>
+								<div className='overflow-x-auto'>
+									<DocumentsTable 
+										documents={documents} 
+										isLoading={isLoadingDocuments}
+									/>
+								</div>
+							</motion.div>
+						)}
+					</AnimatePresence>
 				</motion.div>
 			</div>
 
