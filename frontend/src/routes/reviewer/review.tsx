@@ -274,7 +274,7 @@ function ReviewComponent() {
   const pdfViewerRef = useRef<AnnotatedPDFViewerRef>({
     selectAnnotationById: (annotationId: string) => {
       if (!webViewerInstance.current) return
-      const { annotationManager, documentViewer } = webViewerInstance.current.Core
+      const { annotationManager } = webViewerInstance.current.Core
       if (!annotationManager) return
 
       const annotation = annotationsByIdRef.current.get(annotationId)
@@ -284,17 +284,14 @@ function ReviewComponent() {
       }
 
       try {
-        const ann = annotation as { PageNumber?: number }
-        const pageNumber = ann.PageNumber || 1
+        // Deselect all first
+        annotationManager.deselectAllAnnotations()
 
-        if (documentViewer.setCurrentPage) {
-          documentViewer.setCurrentPage(pageNumber, true)
-        }
-
-        setTimeout(() => {
+        // Use requestAnimationFrame for smoother transition
+        requestAnimationFrame(() => {
           if (!annotationManager || !webViewerInstance.current) return
-          annotationManager.deselectAllAnnotations()
 
+          // Select the annotation first
           if (annotationManager.setSelectedAnnotations) {
             annotationManager.setSelectedAnnotations([annotation])
           } else if (annotationManager.selectAnnotation) {
@@ -305,10 +302,12 @@ function ReviewComponent() {
 
           annotationManager.redrawAnnotation(annotation)
 
+          // Jump to annotation - this handles smooth scrolling to both page and position
+          // jumpToAnnotation automatically scrolls to the correct page and position smoothly
           if (annotationManager.jumpToAnnotation) {
             annotationManager.jumpToAnnotation(annotation)
           }
-        }, 100)
+        })
       } catch (err) {
         console.error('Error selecting annotation:', err)
       }
