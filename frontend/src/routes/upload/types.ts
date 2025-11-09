@@ -15,12 +15,19 @@ export type Document = {
 	upload_date?: string
 	length?: number
 	content_type?: string
+	summary?: string
 	metadata?: {
 		description?: string
 		category?: string
 		status?: string
 		ai_classified_sensitivity?: string
 	}
+}
+
+export type SubmissionWithFlags = Submission & {
+	aiFlags?: Document[]
+	verifiedFlags?: Document[]
+	notes?: string
 }
 
 export type Flag = {
@@ -30,12 +37,6 @@ export type Flag = {
 	row: number
 	content?: string
 	reason?: string
-}
-
-export type SubmissionWithFlags = Submission & {
-	aiFlags?: Flag[]
-	verifiedFlags?: Flag[]
-	notes?: string
 }
 
 export type Toast = {
