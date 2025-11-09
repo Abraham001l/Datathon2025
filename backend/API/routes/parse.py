@@ -173,6 +173,7 @@ def merge_extracted_data(chunks_data: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
     
     page_offset = 0
+    bbox_id_counter = 1  # Counter for reassigning unique IDs across all chunks
     
     for chunk_idx, chunk_data in enumerate(chunks_data):
         # Merge full text with newline separator between chunks
@@ -181,7 +182,7 @@ def merge_extracted_data(chunks_data: List[Dict[str, Any]]) -> Dict[str, Any]:
                 merged['full_text'] += '\n\n'
             merged['full_text'] += chunk_data.get('full_text', '')
         
-        # Merge pages with corrected page numbers
+        # Merge pages with corrected page numbers and reassign bounding box IDs
         chunk_pages = chunk_data.get('pages', [])
         for page in chunk_pages:
             # Create a copy of the page to avoid modifying the original
@@ -190,6 +191,13 @@ def merge_extracted_data(chunks_data: List[Dict[str, Any]]) -> Dict[str, Any]:
             # chunk_page_num is 1-indexed within the chunk
             chunk_page_num = page.get('page_number', 1)
             merged_page['page_number'] = page_offset + chunk_page_num
+            
+            # Reassign IDs to bounding boxes to ensure uniqueness across all chunks
+            text_annotations = merged_page.get('text_annotations', [])
+            for annotation in text_annotations:
+                annotation['id'] = str(bbox_id_counter)
+                bbox_id_counter += 1
+            
             merged['pages'].append(merged_page)
         
         # Merge images with corrected page numbers

@@ -17,6 +17,9 @@ def extract_text_with_boxes(document: documentai.Document) -> Dict[str, Any]:
         'images': []
     }
     
+    # Counter for generating unique IDs for bounding boxes
+    bbox_id_counter = 1
+    
     for page_num, page in enumerate(document.pages):
         page_info = {
             'page_number': page_num + 1,
@@ -36,23 +39,29 @@ def extract_text_with_boxes(document: documentai.Document) -> Dict[str, Any]:
                     if hasattr(block.layout, 'bounding_poly') and block.layout.bounding_poly:
                         bbox = get_bounding_box(block.layout.bounding_poly)
                         page_info['text_annotations'].append({
+                            'id': str(bbox_id_counter),
                             'text': block_text,
                             'bounding_box': bbox,
-                            'type': 'block'
+                            'type': 'block',
+                            'classification': '',
+                            'confidence': '',
+                            'explanation': ''
                         })
+                        bbox_id_counter += 1
         
         # Extract from tokens (more granular, word-level)
-        for token in page.tokens:
-            if hasattr(token, 'layout') and token.layout:
-                if hasattr(token.layout, 'text_anchor') and token.layout.text_anchor:
-                    token_text = get_text(token.layout.text_anchor, document.text)
-                    if hasattr(token.layout, 'bounding_poly') and token.layout.bounding_poly:
-                        bbox = get_bounding_box(token.layout.bounding_poly)
-                        page_info['text_annotations'].append({
-                            'text': token_text,
-                            'bounding_box': bbox,
-                            'type': 'token'
-                        })
+        # Skipping token-level bounding boxes - only processing blocks
+        # for token in page.tokens:
+        #     if hasattr(token, 'layout') and token.layout:
+        #         if hasattr(token.layout, 'text_anchor') and token.layout.text_anchor:
+        #             token_text = get_text(token.layout.text_anchor, document.text)
+        #             if hasattr(token.layout, 'bounding_poly') and token.layout.bounding_poly:
+        #                 bbox = get_bounding_box(token.layout.bounding_poly)
+        #                 page_info['text_annotations'].append({
+        #                     'text': token_text,
+        #                     'bounding_box': bbox,
+        #                     'type': 'token'
+        #                 })
         
         result['pages'].append(page_info)
     

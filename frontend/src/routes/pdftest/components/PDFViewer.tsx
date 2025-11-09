@@ -14,6 +14,10 @@ export interface WebViewerInstance {
     annotationManager?: {
       addAnnotation: (annotation: unknown) => void
       redrawAnnotation: (annotation: unknown) => void
+      addEventListener: (event: string, callback: (annotations: unknown[], action?: string) => void) => void
+      removeEventListener?: (event: string, callback: (annotations: unknown[], action?: string) => void) => void
+      deselectAllAnnotations: () => void
+      bringAnnotationToFront?: (annotation: unknown) => void
     }
     Annotations?: {
       RectangleAnnotation: new (options: {
@@ -23,6 +27,7 @@ export interface WebViewerInstance {
         Height: number
         PageNumber?: number
         StrokeColor: unknown
+        FillColor?: unknown
       }) => unknown
       Color: new (r: number, g: number, b: number, a: number) => unknown
     }
@@ -72,20 +77,57 @@ const addAnnotation = (instance: WebViewerInstance, startX: number, startY: numb
     Height: height,
     PageNumber: targetPage,
     StrokeColor: new Annotations.Color(255, 0, 0, 1),
+    // Use a very minimal fill (0.01 alpha) so the annotation captures clicks in the middle
+    // This makes it clickable throughout the entire rectangle area, not just the edges
+    FillColor: new Annotations.Color(255, 0, 0, 0.01),
   })
   
-  // Make annotation locked, non-selectable, and non-editable
+  // Make annotation non-editable but still selectable/clickable
   if (rect && typeof rect === 'object') {
-    const annotation = rect as { Locked?: boolean; NoSelect?: boolean; NoMove?: boolean; NoResize?: boolean; NoDelete?: boolean }
-    annotation.Locked = true
-    annotation.NoSelect = true
+    const annotation = rect as { 
+      Locked?: boolean
+      NoSelect?: boolean
+      NoMove?: boolean
+      NoResize?: boolean
+      NoDelete?: boolean
+      FillColor?: unknown
+      Opacity?: number
+      ReadOnly?: boolean
+    }
+    // Allow selection/clicking but prevent editing
+    annotation.Locked = false
+    annotation.NoSelect = false
     annotation.NoMove = true
     annotation.NoResize = true
     annotation.NoDelete = true
+    // Ensure annotation is not read-only so it can be selected
+    annotation.ReadOnly = false
   }
   
   annotationManager.addAnnotation(rect)
+  
+  // Try to bring the annotation to the front so it's above text and clickable
+  try {
+    // Try annotationManager method first
+    if (annotationManager.bringAnnotationToFront) {
+      annotationManager.bringAnnotationToFront(rect)
+    }
+    // Also try if the annotation itself has a bringToFront method
+    if (rect && typeof rect === 'object') {
+      const annotation = rect as { bringToFront?: () => void }
+      if (typeof annotation.bringToFront === 'function') {
+        annotation.bringToFront()
+      }
+    }
+  } catch (err) {
+    // If bringing to front doesn't work, continue without it
+    // The minimal fill should still make it clickable
+    console.debug('Could not bring annotation to front:', err)
+  }
+  
   annotationManager.redrawAnnotation(rect)
+  
+  return rect
 }
 
 export interface PDFViewerRef {
@@ -117,6 +159,8 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
   const webViewerInstance = useRef<WebViewerInstance | null>(null)
   const isInitializing = useRef(false)
   const [isReady, setIsReady] = useState(false)
+  const annotationsRef = useRef<Set<unknown>>(new Set())
+  const selectedAnnotationRef = useRef<unknown | null>(null)
 
   // Store callbacks in refs to avoid dependency issues
   const onLoadStartRef = useRef(onLoadStart)
@@ -135,7 +179,10 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
     addAnnotation: (startX: number, startY: number, endX: number, endY: number, pageNumber?: number) => {
       if (webViewerInstance.current) {
         try {
-          addAnnotation(webViewerInstance.current, startX, startY, endX, endY, pageNumber)
+          const annotation = addAnnotation(webViewerInstance.current, startX, startY, endX, endY, pageNumber)
+          if (annotation) {
+            annotationsRef.current.add(annotation)
+          }
         } catch (err) {
           console.error('Error adding annotation:', err)
         }
@@ -208,6 +255,8 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
         initialDoc: '',
         enableAnnotations: true,
         enableMeasurement: false,
+        // @ts-expect-error - enableReadOnlyMode is a valid PDFTron option but may not be in TypeScript types
+        enableReadOnlyMode: true,
       },
       viewerElement
     )
@@ -290,6 +339,73 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
     }
   }, [PDFTRON_LICENSE_KEY])
 
+  // Set up annotation selection event listener
+  useEffect(() => {
+    if (!webViewerInstance.current || !isReady) {
+      return
+    }
+
+    const { annotationManager, Annotations } = webViewerInstance.current.Core
+    if (!annotationManager || !Annotations) {
+      return
+    }
+
+    // Handle annotation selection event - this triggers the color change
+    const handleAnnotationSelected = (annotations: unknown[]) => {
+      if (annotations.length === 0) {
+        // Deselected - reset previous annotation fill to minimal (0.01) to keep it clickable
+        if (selectedAnnotationRef.current) {
+          const prevAnnotation = selectedAnnotationRef.current as { FillColor?: unknown }
+          if (prevAnnotation && Annotations) {
+            prevAnnotation.FillColor = new Annotations.Color(255, 0, 0, 0.01)
+            annotationManager.redrawAnnotation(prevAnnotation)
+          }
+        }
+        selectedAnnotationRef.current = null
+        return
+      }
+
+      // Get the first selected annotation
+      const selectedAnnotation = annotations[0]
+      if (!selectedAnnotation) return
+
+      // Only apply fill color to our annotations, but allow all annotations to be selected
+      const isOurAnnotation = annotationsRef.current.has(selectedAnnotation)
+      
+      if (!isOurAnnotation) {
+        // Not our annotation, don't apply fill but allow selection
+        return
+      }
+
+      // Reset previous annotation fill if different (back to minimal 0.01 to keep it clickable)
+      if (selectedAnnotationRef.current && selectedAnnotationRef.current !== selectedAnnotation) {
+        const prevAnnotation = selectedAnnotationRef.current as { FillColor?: unknown }
+        if (prevAnnotation && Annotations) {
+          prevAnnotation.FillColor = new Annotations.Color(255, 0, 0, 0.01)
+          annotationManager.redrawAnnotation(prevAnnotation)
+        }
+      }
+
+      // Set semi-transparent fill for selected annotation
+      const annotation = selectedAnnotation as { FillColor?: unknown }
+      if (annotation && Annotations) {
+        annotation.FillColor = new Annotations.Color(255, 0, 0, 0.3) // Semi-transparent red
+        annotationManager.redrawAnnotation(annotation)
+        selectedAnnotationRef.current = selectedAnnotation
+      }
+    }
+
+    // Add event listener for annotationSelected event
+    annotationManager.addEventListener('annotationSelected', handleAnnotationSelected)
+
+    // Cleanup: remove event listener
+    return () => {
+      if (annotationManager.removeEventListener) {
+        annotationManager.removeEventListener('annotationSelected', handleAnnotationSelected)
+      }
+    }
+  }, [isReady])
+
   // Track previous document to prevent unnecessary reloads
   const previousDocumentRef = useRef<string | null>(null)
 
@@ -314,6 +430,10 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
 
     // Update the ref
     previousDocumentRef.current = currentDocumentKey
+
+    // Clear annotations when loading a new document
+    annotationsRef.current.clear()
+    selectedAnnotationRef.current = null
 
     const loadDocument = async () => {
       let url: string | null = null
