@@ -4,7 +4,7 @@
  * This module exports all hooks used for document review functionality:
  * - Data fetching hooks (useDocument, useTextAnnotations, useImageAnnotations)
  * - Selection management hooks (useAnnotationSelection)
- * - Navigation hooks (useAnnotationNavigation, useCriticalNavigation)
+ * - Navigation hooks (useAnnotationNavigation, useFlagNavigation)
  * 
  * All hooks include comprehensive JSDoc documentation. See individual hook files for details.
  */
@@ -14,5 +14,5 @@ export { useTextAnnotations, type TextAnnotationData } from './useTextAnnotation
 export { useImageAnnotations, type ImageAnnotationData } from './useImageAnnotations'
 export { useAnnotationSelection, type ViewMode } from './useAnnotationSelection'
 export { useAnnotationNavigation } from './useAnnotationNavigation'
-export { useCriticalNavigation } from './useCriticalNavigation'
+export { useFlagNavigation } from './useFlagNavigation'
 

@@ -4,7 +4,6 @@ import { SelectionHeader } from './SelectionHeader'
 import { TextAnnotationDetails } from './TextAnnotationDetails'
 import { ImageAnnotationDetails } from './ImageAnnotationDetails'
 import { SafeSearchColorBars } from './SafeSearchColorBars'
-import { useEffect } from 'react'
 
 interface TextAnnotationData {
   id: string
@@ -42,6 +41,8 @@ interface ReviewSidebarProps {
   selectedImageAnnotationId: string | null
   boundingBoxData: Map<string, TextAnnotationData>
   imageAnnotationsData: Map<string, ImageAnnotationData>
+  documentFilename?: string
+  sidebarWidth: number
 }
 
 export function ReviewSidebar({
@@ -53,26 +54,21 @@ export function ReviewSidebar({
   selectedImageAnnotationId,
   boundingBoxData,
   imageAnnotationsData,
+  documentFilename,
+  sidebarWidth,
 }: ReviewSidebarProps) {
 
-  useEffect(() => {
-    console.log("imageAnnotationsData", imageAnnotationsData)
-  }, [imageAnnotationsData])
-
-  useEffect(() => {
-    console.log("thisImageAnnotationData", imageAnnotationsData.get(selectedImageAnnotationId || ''))
-  }, [selectedImageAnnotationId, imageAnnotationsData])
   const selectedImageData = selectedImageAnnotationId
     ? imageAnnotationsData.get(selectedImageAnnotationId)
     : undefined
 
   return (
-    <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
+    <div className="w-full h-full bg-white flex flex-col">
       <ViewModeSelector viewMode={viewMode} onViewModeChange={onViewModeChange} />
       <ProgressBar currentIndex={currentIndex} totalCount={totalCount} />
 
 
-      <SelectionHeader currentIndex={currentIndex} totalCount={totalCount} viewMode={viewMode} />
+      <SelectionHeader currentIndex={currentIndex} totalCount={totalCount} viewMode={viewMode} documentFilename={documentFilename} />
 
       {viewMode === 'image' && (
         <SafeSearchColorBars safeSearch={selectedImageData?.safe_search} />
@@ -81,18 +77,22 @@ export function ReviewSidebar({
         <div
           className="flex h-full transition-transform duration-300 ease-in-out"
           style={{
-            transform: viewMode === 'image' ? 'translateX(-320px)' : 'translateX(0px)',
-            width: '640px',
+            transform: viewMode === 'image' ? `translateX(-${sidebarWidth}px)` : 'translateX(0px)',
+            width: `${sidebarWidth * 2}px`,
           }}
         >
-          <TextAnnotationDetails
-            annotationId={selectedAnnotationId}
-            annotationData={selectedAnnotationId ? boundingBoxData.get(selectedAnnotationId) : undefined}
-          />
-          <ImageAnnotationDetails
-            annotationId={selectedImageAnnotationId}
-            annotationData={selectedImageAnnotationId ? imageAnnotationsData.get(selectedImageAnnotationId) : undefined}
-          />
+          <div className="w-full shrink-0" style={{ width: `${sidebarWidth}px` }}>
+            <TextAnnotationDetails
+              annotationId={selectedAnnotationId}
+              annotationData={selectedAnnotationId ? boundingBoxData.get(selectedAnnotationId) : undefined}
+            />
+          </div>
+          <div className="w-full shrink-0" style={{ width: `${sidebarWidth}px` }}>
+            <ImageAnnotationDetails
+              annotationId={selectedImageAnnotationId}
+              annotationData={selectedImageAnnotationId ? imageAnnotationsData.get(selectedImageAnnotationId) : undefined}
+            />
+          </div>
         </div>
       </div>
     </div>

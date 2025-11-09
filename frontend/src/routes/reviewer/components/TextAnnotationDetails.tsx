@@ -14,63 +14,135 @@ interface TextAnnotationDetailsProps {
   annotationData: TextAnnotationData | undefined
 }
 
+function getClassificationBadgeStyles(classification?: string): string {
+  if (!classification) return 'bg-gray-100 text-gray-800'
+  
+  const normalized = classification.toLowerCase().trim()
+  if (normalized === 'unsafe') {
+    return 'bg-red-100 text-red-800 border-red-200'
+  }
+  if (normalized === 'highly sensitive' || normalized === 'sensitive') {
+    return 'bg-orange-100 text-orange-800 border-orange-200'
+  }
+  if (normalized === 'confidential') {
+    return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+  }
+  if (normalized === 'public') {
+    return 'bg-green-100 text-green-800 border-green-200'
+  }
+  return 'bg-gray-100 text-gray-800 border-gray-200'
+}
+
 export function TextAnnotationDetails({ annotationId, annotationData }: TextAnnotationDetailsProps) {
   if (!annotationId || !annotationData) {
     return (
-      <div className="w-80 shrink-0 overflow-auto p-6">
-        <p className="text-gray-500 text-center">Select an annotation to view details</p>
+      <div className="w-full h-full overflow-auto p-6">
+        <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-center">
+          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+            <svg
+              className="w-8 h-8 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
+            </svg>
+          </div>
+          <p className="text-gray-500 text-sm">Select an annotation to view details</p>
+        </div>
       </div>
     )
   }
 
+  const confidencePercentage =
+    typeof annotationData.confidence === 'number'
+      ? annotationData.confidence * 100
+      : null
+
   return (
-    <div className="w-80 shrink-0 overflow-auto p-6">
-      <div className="space-y-4">
-        <div>
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Annotation ID</h3>
-          <p className="text-sm text-gray-900">{annotationId}</p>
-        </div>
+    <div className="w-full h-full overflow-auto p-6 bg-white">
+      <div className="space-y-6">
+        {/* Classification Badge */}
         {annotationData.classification !== undefined && (
-          <div>
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Classification</h3>
-            <p className="text-sm text-gray-900">{annotationData.classification}</p>
-          </div>
-        )}
-        {annotationData.confidence !== undefined && (
-          <div>
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Confidence</h3>
-            {typeof annotationData.confidence === 'number' ? (
-              <div className="flex items-center gap-4">
-                <CircularProgressBar percentage={annotationData.confidence * 100} />
-                <span className="text-sm text-gray-600">
-                  {(annotationData.confidence * 100).toFixed(2)}%
-                </span>
+          <div className="flex items-start gap-3">
+            <div className="flex-1">
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">
+                Classification
+              </label>
+              <div
+                className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-semibold border ${getClassificationBadgeStyles(
+                  annotationData.classification
+                )}`}
+              >
+                {annotationData.classification || 'Unknown'}
               </div>
-            ) : (
-              <p className="text-sm text-gray-900">
-                {annotationData.confidence?.toString() || ''}
-              </p>
+            </div>
+            {confidencePercentage !== null && (
+              <div className="flex flex-col items-center">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                  Confidence
+                </label>
+                <CircularProgressBar percentage={confidencePercentage} size={60} strokeWidth={6} />
+              </div>
             )}
           </div>
         )}
-        {annotationData.explanation !== undefined && (
+
+        {/* Confidence (if classification not shown or separate) */}
+        {annotationData.classification === undefined && annotationData.confidence !== undefined && (
           <div>
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Explanation</h3>
-            <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded border">
-              {annotationData.explanation}
-            </p>
+            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3 block">
+              Confidence
+            </label>
+            {typeof annotationData.confidence === 'number' ? (
+              <div className="flex items-center gap-4">
+                <CircularProgressBar percentage={confidencePercentage!} size={70} strokeWidth={8} />
+                <div className="flex flex-col">
+                  <span className="text-2xl font-bold text-gray-900">
+                    {(annotationData.confidence * 100).toFixed(1)}%
+                  </span>
+                  <span className="text-xs text-gray-500">confidence score</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-900 font-medium">{annotationData.confidence.toString()}</p>
+            )}
           </div>
         )}
+
+        {/* Explanation */}
+        {annotationData.explanation && (
+          <div>
+            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">
+              Explanation
+            </label>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+                {annotationData.explanation}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Text Content */}
         {annotationData.text && (
           <div>
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Text</h3>
-            <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded border">
-              {annotationData.text}
-            </p>
+            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">
+              Extracted Text
+            </label>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 max-h-64 overflow-y-auto">
+              <p className="text-sm text-gray-900 leading-relaxed whitespace-pre-wrap break-words">
+                {annotationData.text}
+              </p>
+            </div>
           </div>
         )}
       </div>
     </div>
   )
 }
-
