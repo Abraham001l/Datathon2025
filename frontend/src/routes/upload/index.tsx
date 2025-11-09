@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react'
 import { apiService } from './api'
 import { useToast } from './hooks/useToast'
 import { ToastContainer } from './components/ToastContainer'
-import { DashboardHeader } from './components/DashboardHeader'
 import { UploadModal } from './components/UploadModal'
 import { DocumentsTable } from './components/DocumentsTable'
 import { UploadProgressIndicator, type FileUploadStatus } from './components/UploadProgressIndicator'
@@ -181,18 +180,58 @@ function UploadComponent() {
 	}
 
 	return (
-		<div className='h-screen flex flex-col bg-gray-50'>
+		<div className='min-h-screen bg-gray-50'>
 			<ToastContainer toasts={toasts} onClose={removeToast} />
 			<UploadProgressIndicator uploadingFiles={uploadingFiles} />
-			<DashboardHeader />
+			
+			<div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6'>
+				{/* Header */}
+				<div className='mb-6'>
+					<h1 className='text-3xl font-bold text-gray-900'>Documents in Database</h1>
+					<p className='mt-1 text-sm text-gray-600'>Upload and manage your documents</p>
+				</div>
 
-			{/* Full width documents table - takes up remaining space */}
-			<div className='flex-1 overflow-hidden'>
-				<DocumentsTable 
-					documents={documents} 
-					isLoading={isLoadingDocuments}
-					onUploadClick={handleUploadClick}
-				/>
+				{/* Documents Table Card */}
+				<div className='bg-white rounded-lg shadow-sm border border-gray-200'>
+					<div className='p-4 border-b border-gray-200'>
+						<div className='flex items-center justify-between'>
+							<h2 className='text-lg font-semibold text-gray-900'>
+								Documents
+								<span className='ml-2 text-sm font-normal text-gray-500'>
+									({documents.length} {documents.length === 1 ? 'document' : 'documents'})
+								</span>
+							</h2>
+							{!isLoadingDocuments && (
+								<button
+									onClick={handleUploadClick}
+									className='flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium'
+								>
+									<svg
+										className='w-4 h-4'
+										fill='none'
+										stroke='currentColor'
+										viewBox='0 0 24 24'
+									>
+										<path
+											strokeLinecap='round'
+											strokeLinejoin='round'
+											strokeWidth={2}
+											d='M12 4v16m8-8H4'
+										/>
+									</svg>
+									Upload
+								</button>
+							)}
+						</div>
+					</div>
+
+					<div className='overflow-x-auto'>
+						<DocumentsTable 
+							documents={documents} 
+							isLoading={isLoadingDocuments}
+						/>
+					</div>
+				</div>
 			</div>
 
 			{/* Upload Modal */}
