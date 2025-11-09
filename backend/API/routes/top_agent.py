@@ -54,6 +54,12 @@ class HumanChainRemoveRequest(BaseModel):
     chain_index: int
 
 
+class AIChainEditByClassificationRequest(BaseModel):
+    """Request model for AI chain editing by classification name."""
+    classification: str  # "sensitive", "confidential", "public", or "unsafe"
+    suggestion: str  # Suggestion for what the new prompt should address
+
+
 @router.post("/classify")
 async def classify_text(request: ClassifyTextRequest):
     """Classify a single text block into sensitivity categories.
@@ -196,6 +202,62 @@ async def human_chain_remove(request: HumanChainRemoveRequest):
     except Exception as e:
         logger.error(f"Error removing from chain: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error removing from chain: {str(e)}")
+
+
+@router.post("/chain/ai-edit-by-classification")
+async def ai_chain_edit_by_classification(request: AIChainEditByClassificationRequest):
+    """Edit a classification chain using AI to generate a new prompt based on classification name.
+    
+    This endpoint accepts a classification name (sensitive, confidential, public, or unsafe)
+    and a suggestion for what the new prompt should address. The AI will generate a new
+    prompt that is added to the chain to improve classification accuracy.
+    
+    Args:
+        request: Request containing classification name and suggestion
+        
+    Returns:
+        Updated chain and success message
+    """
+    try:
+        # Map classification name to tree_index
+        classification_map = {
+            "sensitive": 0,
+            "confidential": 1,
+            "public": 2,
+            "unsafe": 3
+        }
+        
+        classification_lower = request.classification.lower().strip()
+        if classification_lower not in classification_map:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid classification: {request.classification}. Must be one of: sensitive, confidential, public, unsafe"
+            )
+        
+        tree_index = classification_map[classification_lower]
+        
+        if not request.suggestion or not request.suggestion.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="suggestion cannot be empty"
+            )
+        
+        logger.info(f"AI chain edit request for classification: {request.classification} (tree_index: {tree_index})")
+        agent = get_top_agent()
+        updated_chain = agent.ai_chain_edit(tree_index, request.suggestion.strip())
+        logger.info(f"AI chain edit completed successfully for {request.classification}")
+        
+        return JSONResponse(content={
+            "message": f"New prompt added to {request.classification} chain successfully",
+            "classification": request.classification,
+            "chain": updated_chain,
+            "chain_length": len(updated_chain)
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error editing chain by classification: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error editing chain: {str(e)}")
 
 
 @router.get("/chains")

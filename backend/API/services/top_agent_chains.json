@@ -1,0 +1,30 @@
+{
+  "sensitive": [
+    "Text contains personally identifiable information (PII) such as Social Security Numbers, credit card numbers, bank account details, phone numbers, or home addresses.",
+    "Text references proprietary or restricted technical schematics, source code, or blueprints (e.g., defense, military, or next-generation product designs).",
+    "Text includes internal identifiers, access credentials, or sensitive authentication data.",
+    "Text explicitly mentions terms like 'restricted', 'classified', 'top secret', or similar sensitivity indicators.",
+    "Classify if text is Sensitive/Highly Sensitive, and give a confidence score.\nFormat for output:\nYes/No: 0 or 1\nConfidence: 0-1 (0 if Yes/No is 0)\nExplanation: ..."
+  ],
+  "confidential": [
+    "Text contains references to internal company communications, such as internal memos, meeting notes, or strategic discussions.",
+    "Text includes business documents, contracts, invoices, reports, or operational procedures not meant for public release.",
+    "Text contains customer information such as names, emails, addresses, or account details shared in a non-public context.",
+    "Text includes non-public business information, such as revenue, costs, pricing models, or product roadmaps.",
+    "Classify if text is Confidential, and give a confidence score.\nFormat for output:\nYes/No: 0 or 1\nConfidence: 0-1 (0 if Yes/No is 0)\nExplanation: ..."
+  ],
+  "public": [
+    "Text contains marketing or promotional content such as slogans, product descriptions, advertisements, or customer success stories.",
+    "Text includes product brochures, datasheets, or publicly distributed informational materials.",
+    "Text comes from a public website, press release, social media post, or other open-access communication.",
+    "Text includes generic, non-confidential information or references to common industry terms, technologies, or concepts that are already public.",
+    "Classify if text is Public, and give a confidence score.\nFormat for output:\nYes/No: 0 or 1\nConfidence: 0-1 (0 if Yes/No is 0)\nExplanation: ..."
+  ],
+  "unsafe": [
+    "Text contains or references hate speech, discrimination, or derogatory language against any individual or group.",
+    "Text includes explicit, violent, exploitative, or sexually inappropriate material, including any child-related exploitation or abuse.",
+    "Text discusses or promotes criminal activity, terrorism, or illegal actions such as hacking, fraud, or weapon use.",
+    "Text contains political propaganda, extremist content, or cyber-threat information such as phishing, malware, or system intrusion attempts.",
+    "Classify if text is Unsafe Content, and give a confidence score.\nFormat for output:\nYes/No: 0 or 1\nConfidence: 0-1 (0 if Yes/No is 0)\nExplanation: ..."
+  ]
+}

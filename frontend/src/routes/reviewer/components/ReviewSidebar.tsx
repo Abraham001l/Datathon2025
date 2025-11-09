@@ -62,6 +62,10 @@ export function ReviewSidebar({
     ? imageAnnotationsData.get(selectedImageAnnotationId)
     : undefined
 
+  const selectedTextData = selectedAnnotationId
+    ? boundingBoxData.get(selectedAnnotationId)
+    : undefined
+
   return (
     <div className="w-full h-full bg-white flex flex-col">
       <ViewModeSelector viewMode={viewMode} onViewModeChange={onViewModeChange} />
@@ -81,16 +85,16 @@ export function ReviewSidebar({
             width: `${sidebarWidth * 2}px`,
           }}
         >
-          <div className="w-full shrink-0" style={{ width: `${sidebarWidth}px` }}>
+          <div className="w-full shrink-0 overflow-auto" style={{ width: `${sidebarWidth}px` }}>
             <TextAnnotationDetails
               annotationId={selectedAnnotationId}
-              annotationData={selectedAnnotationId ? boundingBoxData.get(selectedAnnotationId) : undefined}
+              annotationData={selectedTextData}
             />
           </div>
-          <div className="w-full shrink-0" style={{ width: `${sidebarWidth}px` }}>
+          <div className="w-full shrink-0 overflow-auto" style={{ width: `${sidebarWidth}px` }}>
             <ImageAnnotationDetails
               annotationId={selectedImageAnnotationId}
-              annotationData={selectedImageAnnotationId ? imageAnnotationsData.get(selectedImageAnnotationId) : undefined}
+              annotationData={selectedImageData}
             />
           </div>
         </div>

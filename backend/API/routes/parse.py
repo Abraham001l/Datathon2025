@@ -174,23 +174,35 @@ async def upload_and_process_pdf(
             logger.warning("Continuing with original bounding boxes despite combination error")
         
         # Generate document summary using Vultr LLM (required for parsed PDFs)
+        logger.info("=== Starting Document Summary Generation ===")
         document_summary = None
         full_text = extracted_data.get('full_text', '')
+        
         if full_text:
+            text_length = len(full_text)
+            text_word_count = len(full_text.split())
+            logger.info(f"Extracted text length: {text_length} characters, {text_word_count} words")
+            logger.info(f"Preparing to generate summary from extracted text")
+            
             try:
                 document_summary = generate_document_summary(full_text)
                 if document_summary:
-                    logger.info(f"Generated summary: {len(document_summary)} characters")
+                    summary_length = len(document_summary)
+                    summary_word_count = len(document_summary.split())
+                    logger.info(f"=== Document Summary Generation Successful ===")
+                    logger.info(f"Generated summary length: {summary_length} characters, {summary_word_count} words")
+                    logger.info(f"Summary compression ratio: {text_length/summary_length:.2f}:1 (original:summary)")
                 else:
-                    logger.warning("Summary generation returned empty result")
+                    logger.error("Summary generation returned empty result")
             except Exception as summary_error:
+                logger.error(f"=== Document Summary Generation Failed ===")
                 logger.error(f"Failed to generate summary: {str(summary_error)}", exc_info=True)
                 raise HTTPException(
                     status_code=500,
                     detail=f"Failed to generate document summary: {str(summary_error)}"
                 )
         else:
-            logger.warning("No text extracted from PDF, cannot generate summary")
+            logger.error("No text extracted from PDF, cannot generate summary")
             raise HTTPException(
                 status_code=500,
                 detail="No text content extracted from PDF, cannot generate summary"
@@ -198,14 +210,18 @@ async def upload_and_process_pdf(
         
         # Validate that summary was generated
         if not document_summary or not document_summary.strip():
+            logger.error("Summary validation failed: empty summary returned")
             raise HTTPException(
                 status_code=500,
                 detail="Summary generation failed: empty summary returned"
             )
         
+        logger.info(f"Document summary validated successfully - Ready for storage and classification")
+        
         # Upload PDF to GridFS using upload_file_to_gridfs
         # Description is optional (user-provided), summary is required (generated)
-        logger.info("Uploading PDF to GridFS")
+        logger.info("Uploading PDF to GridFS with document summary")
+        logger.info(f"Storing summary ({len(document_summary)} chars) with PDF file: {file.filename}")
         pdf_file_id, is_update = await upload_file_to_gridfs(
             file_contents=pdf_content,
             filename=file.filename,
@@ -217,6 +233,7 @@ async def upload_and_process_pdf(
             summary=document_summary  # Required generated summary
         )
         logger.info(f"PDF uploaded to GridFS: file_id={pdf_file_id}, updated={is_update}")
+        logger.info(f"Document summary stored successfully with PDF (file_id: {pdf_file_id})")
         
         # Upload bounding boxes using upload_bounding_boxes
         logger.info("Uploading bounding boxes to MongoDB")
@@ -229,7 +246,9 @@ async def upload_and_process_pdf(
         
         # Schedule bounding box classification to run asynchronously in the background
         logger.info("Scheduling bounding box classification to run asynchronously")
+        logger.info(f"Passing document summary ({len(document_summary)} chars) to classification task for pdf_file_id: {pdf_file_id}")
         background_tasks.add_task(classify_bounding_boxes, pdf_file_id, document_summary)
+        logger.info(f"Background classification task scheduled with document summary")
         
         # Extract and process images from PDF
         image_boxes_id = None

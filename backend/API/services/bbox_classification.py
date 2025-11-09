@@ -283,9 +283,22 @@ def classify_bounding_boxes(pdf_file_id: str, document_summary: str) -> Dict[str
         Dictionary with classification statistics
     """
     try:
-        logger.info(f"Starting classification for pdf_file_id: {pdf_file_id}")
+        logger.info(f"=== Bounding Box Classification Started ===")
+        logger.info(f"PDF File ID: {pdf_file_id}")
+        
+        # Log summary information
+        if document_summary:
+            logger.info(f"Document summary received - Length: {len(document_summary)} characters")
+            summary_word_count = len(document_summary.split())
+            logger.info(f"Document summary word count: {summary_word_count} words")
+            # Log summary preview
+            summary_preview = document_summary[:150] + "..." if len(document_summary) > 150 else document_summary
+            logger.debug(f"Document summary preview: {summary_preview}")
+        else:
+            logger.warning(f"No document summary provided for pdf_file_id: {pdf_file_id} - classification will proceed without document context")
         
         # Retrieve bounding boxes from database
+        logger.info(f"Retrieving bounding boxes from database for pdf_file_id: {pdf_file_id}")
         document = get_bounding_boxes_by_file_id(pdf_file_id)
         if not document:
             logger.error(f"Could not retrieve bounding boxes for pdf_file_id: {pdf_file_id}")
@@ -298,11 +311,13 @@ def classify_bounding_boxes(pdf_file_id: str, document_summary: str) -> Dict[str
         
         # Extract all bounding box texts
         pages = document.get('pages', [])
+        logger.info(f"Retrieved document with {len(pages)} pages")
         bbox_texts = []
         bbox_metadata = []  # Store (page_index, bbox_id) for each text
         
         for page_idx, page in enumerate(pages):
             bounding_boxes = page.get('bounding_boxes', [])
+            logger.debug(f"Page {page_idx}: {len(bounding_boxes)} bounding boxes")
             for bbox in bounding_boxes:
                 bbox_id = bbox.get('id')
                 bbox_text = bbox.get('text', '').strip()
@@ -326,11 +341,15 @@ def classify_bounding_boxes(pdf_file_id: str, document_summary: str) -> Dict[str
                 "message": "No bounding box texts to classify"
             }
         
-        logger.info(f"Classifying {len(bbox_texts)} bounding boxes for pdf_file_id: {pdf_file_id}")
+        logger.info(f"Extracted {len(bbox_texts)} bounding box texts for classification")
+        total_text_length = sum(len(text) for text in bbox_texts)
+        logger.info(f"Total text length across all bounding boxes: {total_text_length} characters")
         
         # Call ToP Agent to classify all blocks
+        logger.info(f"Calling ToP Agent to classify {len(bbox_texts)} blocks with document summary")
         top_agent = get_top_agent()
         results = top_agent.run_doc(bbox_texts, document_summary)
+        logger.info(f"ToP Agent completed classification - Received {len(results)} results")
         
         # Parse results and prepare classifications
         classifications = []
@@ -368,11 +387,16 @@ def classify_bounding_boxes(pdf_file_id: str, document_summary: str) -> Dict[str
                 })
                 successful_count += 1
         
+        logger.info(f"Parsed {len(classifications)} classification results - Successful: {successful_count}, Failed: {failed_count}")
+        
         # Update database with classifications
+        logger.info(f"Updating database with classifications for pdf_file_id: {pdf_file_id}")
         update_success = update_bounding_box_classifications(pdf_file_id, classifications)
         
         if update_success:
+            logger.info(f"=== Bounding Box Classification Completed Successfully ===")
             logger.info(f"Successfully classified {successful_count} bounding boxes for pdf_file_id: {pdf_file_id}")
+            logger.info(f"Failed classifications: {failed_count}, Total bounding boxes: {len(bbox_texts)}")
             return {
                 "success": True,
                 "classified_count": successful_count,

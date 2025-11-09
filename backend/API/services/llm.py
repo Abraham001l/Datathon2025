@@ -52,23 +52,42 @@ class VultrLLM:
 
     def generate_summary(self, text: str) -> str:
         """Generate a summary of the provided text."""
+        logger.info(f"Starting summary generation - Input text length: {len(text)} characters")
+        
         if not text or not text.strip():
+            logger.warning("Empty or whitespace-only text provided for summary generation")
             return "No text content available for summary."
         
         # Truncate text if too long (limit to avoid token limits)
         MAX_TEXT_LENGTH = 8000
+        original_length = len(text)
         if len(text) > MAX_TEXT_LENGTH:
             text_to_summarize = text[:MAX_TEXT_LENGTH] + "\n\n[Document truncated for summarization]"
+            logger.info(f"Text truncated from {original_length} to {MAX_TEXT_LENGTH} characters for summary generation")
         else:
             text_to_summarize = text
+            logger.debug(f"Text length within limits ({len(text)} chars), no truncation needed")
         
         prompt = f"Please provide a concise summary of the following document. Focus on the main topics, key points, and important information.\n\nDocument text:\n{text_to_summarize}\n\nSummary:"
         
-        return self.run(prompt)
+        logger.debug(f"Calling LLM API with model: {self.model} for summary generation")
+        try:
+            summary = self.run(prompt)
+            logger.info(f"Summary generation completed - Generated summary length: {len(summary)} characters")
+            # Log a preview of the summary (first 200 characters)
+            summary_preview = summary[:200] + "..." if len(summary) > 200 else summary
+            logger.debug(f"Summary preview: {summary_preview}")
+            return summary
+        except Exception as e:
+            logger.error(f"Error during summary generation: {str(e)}", exc_info=True)
+            raise
 
 
 def generate_document_summary(full_text: str) -> Optional[str]:
     """Generate a summary of the document using Vultr LLM."""
+    logger.info(f"=== Summary Generation Started ===")
+    logger.info(f"Input document text length: {len(full_text)} characters")
+    
     try:
         vultr_api_key = os.getenv("VULTR_API_KEY")
         if not vultr_api_key:
@@ -76,14 +95,28 @@ def generate_document_summary(full_text: str) -> Optional[str]:
             return None
         
         vultr_model = os.getenv("VULTR_MODEL", "mistral-nemo-instruct-240")
+        logger.info(f"Initializing Vultr LLM with model: {vultr_model}")
         llm = VultrLLM(api_key=vultr_api_key, model=vultr_model)
         
-        logger.info("Generating document summary with Vultr LLM")
+        logger.info("Calling LLM to generate document summary")
         summary = llm.generate_summary(full_text)
-        logger.info(f"Summary generated: {len(summary)} characters")
+        
+        if summary:
+            logger.info(f"=== Summary Generation Completed Successfully ===")
+            logger.info(f"Final summary length: {len(summary)} characters")
+            # Log word count
+            word_count = len(summary.split())
+            logger.info(f"Summary word count: {word_count} words")
+            # Log first 300 characters as preview
+            preview = summary[:300] + "..." if len(summary) > 300 else summary
+            logger.debug(f"Summary preview (first 300 chars): {preview}")
+        else:
+            logger.warning("Summary generation returned empty result")
+        
         return summary
         
     except Exception as e:
-        logger.error(f"Failed to generate document summary: {str(e)}", exc_info=True)
+        logger.error(f"=== Summary Generation Failed ===")
+        logger.error(f"Error generating document summary: {str(e)}", exc_info=True)
         return None
 
