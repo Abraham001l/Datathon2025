@@ -47,7 +47,7 @@ class ToP_Agent:
         """Classify if text is Sensitive/Highly Sensitive, and give a confidence score.
 Format for output:
 Yes/No: 0 or 1
-Confidence: 0-1
+Confidence: 0-1 (0 if Yes/No is 0)
 Explanation: ..."""
         ]
         self.confidential_chain = [
@@ -58,7 +58,7 @@ Explanation: ..."""
         """Classify if text is Confidential, and give a confidence score.
 Format for output:
 Yes/No: 0 or 1
-Confidence: 0-1
+Confidence: 0-1 (0 if Yes/No is 0)
 Explanation: ..."""
         ]
         self.public_chain = [
@@ -69,7 +69,7 @@ Explanation: ..."""
         """Classify if text is Public, and give a confidence score.
 Format for output:
 Yes/No: 0 or 1
-Confidence: 0-1
+Confidence: 0-1 (0 if Yes/No is 0)
 Explanation: ..."""
         ]
         self.unsafe_chain = [
@@ -80,7 +80,7 @@ Explanation: ..."""
         """Classify if text is Unsafe Content, and give a confidence score.
 Format for output:
 Yes/No: 0 or 1
-Confidence: 0-1
+Confidence: 0-1 (0 if Yes/No is 0)
 Explanation: ..."""
         ]
         self.tree = [self.sensitive_chain, self.confidential_chain, self.public_chain, self.unsafe_chain]
