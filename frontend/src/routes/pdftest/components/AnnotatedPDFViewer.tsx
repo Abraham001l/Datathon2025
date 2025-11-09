@@ -15,6 +15,8 @@ export interface AnnotatedPDFViewerRef {
   clearAnnotations: () => void
   hideAllAnnotations: () => void
   showAllAnnotations: () => void
+  hideAnnotationsByIds: (ids: Set<string>) => void
+  showAnnotationsByIds: (ids: Set<string>) => void
 }
 
 interface AnnotatedPDFViewerProps {
@@ -65,6 +67,16 @@ export const AnnotatedPDFViewer = forwardRef<AnnotatedPDFViewerRef, AnnotatedPDF
     showAllAnnotations: () => {
       if (pdfViewerRef.current) {
         pdfViewerRef.current.showAllAnnotations()
+      }
+    },
+    hideAnnotationsByIds: (ids: Set<string>) => {
+      if (pdfViewerRef.current) {
+        pdfViewerRef.current.hideAnnotationsByIds(ids)
+      }
+    },
+    showAnnotationsByIds: (ids: Set<string>) => {
+      if (pdfViewerRef.current) {
+        pdfViewerRef.current.showAnnotationsByIds(ids)
       }
     },
   }), [])
