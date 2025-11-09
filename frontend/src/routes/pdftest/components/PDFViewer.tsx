@@ -183,6 +183,10 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
   const annotationsRef = useRef<Set<unknown>>(new Set())
   const annotationsByIdRef = useRef<Map<string, unknown>>(new Map())
   const selectedAnnotationRef = useRef<unknown | null>(null)
+  // Track mouse events to detect text selection vs annotation clicks
+  const mouseDownRef = useRef<{ x: number; y: number; time: number } | null>(null)
+  const isSelectingTextRef = useRef(false)
+  const pendingAnnotationSelectionRef = useRef<unknown[] | null>(null)
 
   // Store callbacks in refs to avoid dependency issues
   const onLoadStartRef = useRef(onLoadStart)
@@ -623,6 +627,77 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
     }
   }, [PDFTRON_LICENSE_KEY])
 
+  // Set up mouse event listeners to detect text selection
+  useEffect(() => {
+    if (!webViewerInstance.current || !isReady || !viewer.current) {
+      return
+    }
+
+    const viewerElement = viewer.current
+    const MOUSE_MOVE_THRESHOLD = 5 // pixels - if mouse moves more than this, it's text selection
+    const CLICK_TIME_THRESHOLD = 300 // ms - if mouse is down longer, likely text selection
+
+    const handleMouseDown = (e: MouseEvent) => {
+      mouseDownRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        time: Date.now(),
+      }
+      isSelectingTextRef.current = false
+      pendingAnnotationSelectionRef.current = null
+    }
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!mouseDownRef.current) return
+
+      const dx = Math.abs(e.clientX - mouseDownRef.current.x)
+      const dy = Math.abs(e.clientY - mouseDownRef.current.y)
+      const distance = Math.sqrt(dx * dx + dy * dy)
+
+      // If mouse moved significantly, user is selecting text
+      if (distance > MOUSE_MOVE_THRESHOLD) {
+        isSelectingTextRef.current = true
+        // Cancel any pending annotation selection immediately
+        if (pendingAnnotationSelectionRef.current && webViewerInstance.current) {
+          const { annotationManager } = webViewerInstance.current.Core
+          if (annotationManager) {
+            annotationManager.deselectAllAnnotations()
+          }
+          pendingAnnotationSelectionRef.current = null
+        }
+      }
+    }
+
+    const handleMouseUp = () => {
+      // Keep text selection flag for a bit longer to catch any delayed annotation selection events
+      if (mouseDownRef.current) {
+        const timeDiff = Date.now() - mouseDownRef.current.time
+        // If it was a long press or significant movement, it was text selection
+        if (timeDiff > CLICK_TIME_THRESHOLD || isSelectingTextRef.current) {
+          // Keep the flag for a short time to catch any delayed annotation selection
+          setTimeout(() => {
+            isSelectingTextRef.current = false
+          }, 200)
+        } else {
+          // Quick click, reset immediately
+          isSelectingTextRef.current = false
+        }
+      }
+      mouseDownRef.current = null
+    }
+
+    // Add event listeners to the viewer element
+    viewerElement.addEventListener('mousedown', handleMouseDown)
+    viewerElement.addEventListener('mousemove', handleMouseMove)
+    viewerElement.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      viewerElement.removeEventListener('mousedown', handleMouseDown)
+      viewerElement.removeEventListener('mousemove', handleMouseMove)
+      viewerElement.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isReady])
+
   // Set up annotation selection event listener
   useEffect(() => {
     if (!webViewerInstance.current || !isReady) {
@@ -634,8 +709,8 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
       return
     }
 
-    // Handle annotation selection event - this triggers the color change
-    const handleAnnotationSelected = (annotations: unknown[]) => {
+    // Process annotation selection (extracted to avoid recursion)
+    const processAnnotationSelection = (annotations: unknown[]) => {
       if (annotations.length === 0) {
         // Deselected - reset previous annotation fill to minimal (0.01) to keep it clickable
         if (selectedAnnotationRef.current) {
@@ -694,7 +769,50 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
         annotationManager.redrawAnnotation(annotation)
         selectedAnnotationRef.current = selectedAnnotation
       }
-      
+    }
+
+    // Handle annotation selection event - this triggers the color change
+    const handleAnnotationSelected = (annotations: unknown[]) => {
+      // If user is currently selecting text (mouse moved significantly), cancel annotation selection
+      if (isSelectingTextRef.current) {
+        // Cancel the selection immediately
+        setTimeout(() => {
+          if (annotationManager) {
+            annotationManager.deselectAllAnnotations()
+          }
+        }, 0)
+        return
+      }
+
+      // For new selections while mouse is down, delay processing to check if it's text selection
+      if (annotations.length > 0 && mouseDownRef.current) {
+        const timeSinceMouseDown = Date.now() - mouseDownRef.current.time
+        // If mouse was just pressed (< 150ms), wait a bit to see if user moves mouse (text selection)
+        if (timeSinceMouseDown < 150) {
+          pendingAnnotationSelectionRef.current = annotations
+          setTimeout(() => {
+            // Check if user moved mouse (text selection)
+            if (isSelectingTextRef.current) {
+              // User is selecting text, cancel annotation selection
+              if (annotationManager) {
+                annotationManager.deselectAllAnnotations()
+              }
+              pendingAnnotationSelectionRef.current = null
+              return
+            }
+            // It's a real click, process the selection
+            if (pendingAnnotationSelectionRef.current === annotations) {
+              processAnnotationSelection(annotations)
+            }
+            pendingAnnotationSelectionRef.current = null
+          }, 150)
+          // Don't process immediately, wait for the timeout
+          return
+        }
+      }
+
+      // Process the selection normally
+      processAnnotationSelection(annotations)
     }
 
     // Add event listener for annotationSelected event
