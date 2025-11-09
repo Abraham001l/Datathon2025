@@ -172,6 +172,55 @@ async def stream_document(file_id: str):
             detail=f"Error streaming file: {str(e)}"
         )
 
+@router.get("/document/{file_id}/bounding_boxes")
+async def get_document_bounding_boxes(file_id: str):
+    """
+    Get document bounding boxes from the bounding_boxes collection. Just have to return the "pages" attribute
+    
+    - **file_id**: The MongoDB ObjectId of the document to get bounding boxes for
+    """
+    logger.info(f"Get document bounding boxes request received for file_id: {file_id}")
+    try:
+        # Validate ObjectId format
+        try:
+            object_id = ObjectId(file_id)
+        except Exception:
+            logger.warning(f"Invalid file ID format: {file_id}")
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid file ID format"
+            )
+        
+        # Get database connection
+        logger.debug("Connecting to database")
+        db, _ = get_database()
+        
+        # Search for document with matching _id in bounding_boxes collection
+        collection = db['bounding_boxes']
+        
+        correct_document = None
+        for document in collection.find():
+            if document['pdf_file_id'] == file_id:
+                correct_document = document
+                break
+        
+        if not correct_document:
+            logger.warning(f"Document not found for file_id: {file_id}")
+            raise HTTPException(
+                status_code=404,
+                detail="Document not found"
+            )
+        
+        return correct_document.get("pages")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving document bounding boxes for {file_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving document bounding boxes: {str(e)}"
+        )
 
 @router.get("/document/{file_id}/metadata")
 async def get_document_metadata(file_id: str):
@@ -198,16 +247,31 @@ async def get_document_metadata(file_id: str):
         
         # Search for document with matching _id in bounding_boxes collection
         collection = db['bounding_boxes']
-
-        logger.info(f"Collections[0]: {collection.find()[0]['_id']}")
-        logger.info(f"Object ID: {object_id}")
-        for document in collection.find():
-            logger.info(f"Checking document: {document['_id']} with object ID: {object_id}")
-            if document['_id'] == object_id:
-                logger.info("Match")
         
-        return metadata
-    
+        correct_document = None
+        # NOTE/TODO: reason why i had to do this goofy loop shit is because the find_one was buggin
+        for document in collection.find():
+            if document['pdf_file_id'] == file_id:
+                correct_document = document
+                break
+        
+        if not correct_document:
+            logger.warning(f"Document not found for file_id: {file_id}")
+            raise HTTPException(
+                status_code=404,
+                detail="Document not found"
+            )
+
+        # convert correct_document to json
+        return {
+            "pages": correct_document.get("pages"),
+            "full_text": correct_document.get("full_text"),
+            "filename": correct_document.get("filename"),
+            "pdf_file_id": correct_document.get("pdf_file_id"),
+            "images": correct_document.get("images"),
+            "summary": correct_document.get("summary"),
+        }
+
     except HTTPException:
         raise
     except Exception as e:

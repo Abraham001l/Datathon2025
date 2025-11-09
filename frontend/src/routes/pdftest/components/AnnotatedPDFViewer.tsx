@@ -6,6 +6,7 @@ export interface RectangleAnnotation {
   startY: number
   endX: number
   endY: number
+  pageNumber?: number
 }
 
 interface AnnotatedPDFViewerProps {
@@ -58,7 +59,8 @@ export const AnnotatedPDFViewer = ({
             annotation.startX,
             annotation.startY,
             annotation.endX,
-            annotation.endY
+            annotation.endY,
+            annotation.pageNumber
           )
         })
       }

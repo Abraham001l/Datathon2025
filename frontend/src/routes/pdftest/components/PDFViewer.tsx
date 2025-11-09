@@ -7,6 +7,9 @@ export interface WebViewerInstance {
       loadDocument: (url: string, options?: { filename?: string }) => void
       addEventListener: (event: string, callback: () => void) => void
       removeEventListener?: (event: string, callback: () => void) => void
+      getDocument?: () => {
+        getPageInfo?: (pageNum: number) => { width: number; height: number } | null
+      } | null
     }
     annotationManager?: {
       addAnnotation: (annotation: unknown) => void
@@ -18,6 +21,7 @@ export interface WebViewerInstance {
         Y: number
         Width: number
         Height: number
+        PageNumber?: number
         StrokeColor: unknown
       }) => unknown
       Color: new (r: number, g: number, b: number, a: number) => unknown
@@ -29,31 +33,63 @@ export interface WebViewerInstance {
   }
 }
 
-const addAnnotation = (instance: WebViewerInstance, startX: number, startY: number, endX: number, endY: number) => {
-  const { annotationManager, Annotations } = instance.Core
+const addAnnotation = (instance: WebViewerInstance, startX: number, startY: number, endX: number, endY: number, pageNumber?: number) => {
+  const { annotationManager, Annotations, documentViewer } = instance.Core
   if (!annotationManager || !Annotations) {
     return
   }
   
-  // Calculate width and height from coordinates
-  const width = Math.abs(endX - startX)
-  const height = Math.abs(endY - startY)
-  const x = Math.min(startX, endX)
-  const y = Math.min(startY, endY)
+  // Use provided page number or default to 1
+  const targetPage = pageNumber || 1
+  
+  // Get actual PDF page dimensions for the specific page
+  let actualPageWidth = 1758
+  let actualPageHeight = 2275
+  try {
+    const doc = documentViewer.getDocument?.()
+    const pageInfo = doc?.getPageInfo?.(targetPage)
+    if (pageInfo) {
+      actualPageWidth = pageInfo.width
+      actualPageHeight = pageInfo.height
+    }
+  } catch {
+    // Use defaults
+  }
+  
+  // Scale coordinates from 1758x2275 reference to actual PDF dimensions
+  const scaleX = actualPageWidth / 1758
+  const scaleY = actualPageHeight / 2275
+  
+  const x = Math.min(startX, endX) * scaleX
+  const y = Math.min(startY, endY) * scaleY
+  const width = Math.abs(endX - startX) * scaleX
+  const height = Math.abs(endY - startY) * scaleY
   
   const rect = new Annotations.RectangleAnnotation({
     X: x,
     Y: y,
     Width: width,
     Height: height,
+    PageNumber: targetPage,
     StrokeColor: new Annotations.Color(255, 0, 0, 1),
   })
+  
+  // Make annotation locked, non-selectable, and non-editable
+  if (rect && typeof rect === 'object') {
+    const annotation = rect as { Locked?: boolean; NoSelect?: boolean; NoMove?: boolean; NoResize?: boolean; NoDelete?: boolean }
+    annotation.Locked = true
+    annotation.NoSelect = true
+    annotation.NoMove = true
+    annotation.NoResize = true
+    annotation.NoDelete = true
+  }
+  
   annotationManager.addAnnotation(rect)
   annotationManager.redrawAnnotation(rect)
 }
 
 export interface PDFViewerRef {
-  addAnnotation: (startX: number, startY: number, endX: number, endY: number) => void
+  addAnnotation: (startX: number, startY: number, endX: number, endY: number, pageNumber?: number) => void
 }
 
 interface PDFViewerProps {
@@ -96,10 +132,10 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
 
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
-    addAnnotation: (startX: number, startY: number, endX: number, endY: number) => {
+    addAnnotation: (startX: number, startY: number, endX: number, endY: number, pageNumber?: number) => {
       if (webViewerInstance.current) {
         try {
-          addAnnotation(webViewerInstance.current, startX, startY, endX, endY)
+          addAnnotation(webViewerInstance.current, startX, startY, endX, endY, pageNumber)
         } catch (err) {
           console.error('Error adding annotation:', err)
         }

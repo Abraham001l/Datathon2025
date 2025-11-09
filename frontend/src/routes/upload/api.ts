@@ -101,6 +101,27 @@ export const apiService = {
 		// TODO: Create backend endpoint for getting submission flags
 		// Placeholder - replace with actual API call when endpoint is created
 		void submissionId
-		return { ai_flags: [], verified_flags: [] }
+		return { ai_flags: [], verified_flags: [], reviewer_notes: '' }
+	},
+	getDocumentBoundingBoxes: async (
+		file_id: string
+	): Promise<Array<{
+		page_number: number
+		text: string
+		bounding_boxes: Array<{
+			text: string
+			bounding_box: {
+				vertices: Array<{ x: number; y: number }>
+			}
+			type: string
+		}>
+		dimensions?: Record<string, unknown>
+	}>> => {
+		const response = await fetch(`${API_BASE_URL}/view/document/${file_id}/bounding_boxes`)
+		if (!response.ok) {
+			const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch document bounding boxes' }))
+			throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
+		}
+		return await response.json()
 	},
 }
