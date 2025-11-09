@@ -23,6 +23,7 @@ export interface WebViewerInstance {
       setSelectedAnnotations?: (annotations: unknown[]) => void
       bringAnnotationToFront?: (annotation: unknown) => void
       getAnnotationsList?: () => unknown[]
+      jumpToAnnotation?: (annotation: unknown) => void
     }
     Annotations?: {
       RectangleAnnotation: new (options: {
@@ -239,13 +240,14 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
           documentViewer.setCurrentPage(pageNumber, true)
         }
 
+
         // Wait a bit for page to load, then select annotation
         setTimeout(() => {
           if (!annotationManager || !webViewerInstance.current) return
 
           // Deselect all first
           annotationManager.deselectAllAnnotations()
-          
+
           // Select the annotation using setSelectedAnnotations (preferred) or selectAnnotation
           if (annotationManager.setSelectedAnnotations) {
             annotationManager.setSelectedAnnotations([annotation])
@@ -263,6 +265,10 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
 
           // Redraw to ensure selection is visible
           annotationManager.redrawAnnotation(annotation)
+
+          if (annotationManager.jumpToAnnotation) {
+            annotationManager.jumpToAnnotation(annotation)
+          }
         }, 100)
       } catch (err) {
         console.error('Error selecting annotation:', err)
@@ -688,6 +694,7 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
         annotationManager.redrawAnnotation(annotation)
         selectedAnnotationRef.current = selectedAnnotation
       }
+      
     }
 
     // Add event listener for annotationSelected event
