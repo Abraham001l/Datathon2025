@@ -1,3 +1,5 @@
+import { CircularProgressBar } from './CircularProgressBar'
+
 interface TextAnnotationData {
   id: string
   text: string
@@ -37,11 +39,18 @@ export function TextAnnotationDetails({ annotationId, annotationData }: TextAnno
         {annotationData.confidence !== undefined && (
           <div>
             <h3 className="text-sm font-medium text-gray-700 mb-2">Confidence</h3>
-            <p className="text-sm text-gray-900">
-              {typeof annotationData.confidence === 'number'
-                ? `${(annotationData.confidence * 100).toFixed(2)}%`
-                : annotationData.confidence?.toString() || ''}
-            </p>
+            {typeof annotationData.confidence === 'number' ? (
+              <div className="flex items-center gap-4">
+                <CircularProgressBar percentage={annotationData.confidence * 100} />
+                <span className="text-sm text-gray-600">
+                  {(annotationData.confidence * 100).toFixed(2)}%
+                </span>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-900">
+                {annotationData.confidence?.toString() || ''}
+              </p>
+            )}
           </div>
         )}
         {annotationData.explanation !== undefined && (
