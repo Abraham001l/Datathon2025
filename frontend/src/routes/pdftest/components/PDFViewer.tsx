@@ -177,7 +177,9 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
     )
       .then((instance) => {
         webViewerInstance.current = instance as WebViewerInstance
-        
+        instance.UI.setModularHeaders([]);
+
+
         // Wait for UI to be ready, then hide header elements except zoom
         const { UI } = instance as WebViewerInstance
         if (UI && typeof (UI as { ready?: () => Promise<void> }).ready === 'function') {
