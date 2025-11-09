@@ -38,7 +38,7 @@ export interface WebViewerInstance {
   }
 }
 
-const addAnnotation = (instance: WebViewerInstance, startX: number, startY: number, endX: number, endY: number, pageNumber?: number) => {
+const addAnnotation = (instance: WebViewerInstance, startX: number, startY: number, endX: number, endY: number, pageNumber?: number, id?: string) => {
   const { annotationManager, Annotations, documentViewer } = instance.Core
   if (!annotationManager || !Annotations) {
     return
@@ -80,6 +80,8 @@ const addAnnotation = (instance: WebViewerInstance, startX: number, startY: numb
     // Use a very minimal fill (0.01 alpha) so the annotation captures clicks in the middle
     // This makes it clickable throughout the entire rectangle area, not just the edges
     FillColor: new Annotations.Color(255, 0, 0, 0.01),
+    // Set the annotation number/ID if provided
+    ...(id ? { Subject: id } : {}),
   })
   
   // Make annotation non-editable but still selectable/clickable
@@ -131,7 +133,7 @@ const addAnnotation = (instance: WebViewerInstance, startX: number, startY: numb
 }
 
 export interface PDFViewerRef {
-  addAnnotation: (startX: number, startY: number, endX: number, endY: number, pageNumber?: number) => void
+  addAnnotation: (startX: number, startY: number, endX: number, endY: number, pageNumber?: number, id?: string) => void
 }
 
 interface PDFViewerProps {
@@ -142,6 +144,7 @@ interface PDFViewerProps {
   onLoadStart?: () => void
   onLoadComplete?: () => void
   onError?: (error: string) => void
+  onAnnotationSelected?: (annotationId: string | null) => void
   className?: string
 }
 
@@ -153,6 +156,7 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
   onLoadStart,
   onLoadComplete,
   onError,
+  onAnnotationSelected,
   className = '',
 }, ref) => {
   const viewer = useRef<HTMLDivElement>(null)
@@ -166,22 +170,29 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
   const onLoadStartRef = useRef(onLoadStart)
   const onLoadCompleteRef = useRef(onLoadComplete)
   const onErrorRef = useRef(onError)
+  const onAnnotationSelectedRef = useRef(onAnnotationSelected)
 
   // Update refs when callbacks change
   useEffect(() => {
     onLoadStartRef.current = onLoadStart
     onLoadCompleteRef.current = onLoadComplete
     onErrorRef.current = onError
-  }, [onLoadStart, onLoadComplete, onError])
+    onAnnotationSelectedRef.current = onAnnotationSelected
+  }, [onLoadStart, onLoadComplete, onError, onAnnotationSelected])
 
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
-    addAnnotation: (startX: number, startY: number, endX: number, endY: number, pageNumber?: number) => {
+    addAnnotation: (startX: number, startY: number, endX: number, endY: number, pageNumber?: number, id?: string) => {
       if (webViewerInstance.current) {
         try {
-          const annotation = addAnnotation(webViewerInstance.current, startX, startY, endX, endY, pageNumber)
+          const annotation = addAnnotation(webViewerInstance.current, startX, startY, endX, endY, pageNumber, id)
           if (annotation) {
             annotationsRef.current.add(annotation)
+            // Store the ID mapping
+            if (id && annotation && typeof annotation === 'object') {
+              const ann = annotation as { _id?: string }
+              ann._id = id
+            }
           }
         } catch (err) {
           console.error('Error adding annotation:', err)
@@ -257,6 +268,7 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
         enableMeasurement: false,
         // @ts-expect-error - enableReadOnlyMode is a valid PDFTron option but may not be in TypeScript types
         enableReadOnlyMode: true,
+        enableAnnotationNumbering: true,
       },
       viewerElement
     )
@@ -362,6 +374,11 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
           }
         }
         selectedAnnotationRef.current = null
+        
+        // Notify parent component of deselection
+        if (onAnnotationSelectedRef.current) {
+          onAnnotationSelectedRef.current(null)
+        }
         return
       }
 
@@ -375,6 +392,18 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(({
       if (!isOurAnnotation) {
         // Not our annotation, don't apply fill but allow selection
         return
+      }
+
+      // Get annotation ID from Subject or _id property
+      let annotationId: string | null = null
+      if (selectedAnnotation && typeof selectedAnnotation === 'object') {
+        const ann = selectedAnnotation as { Subject?: string; _id?: string }
+        annotationId = ann.Subject || ann._id || null
+      }
+      
+      // Notify parent component of selection
+      if (onAnnotationSelectedRef.current) {
+        onAnnotationSelectedRef.current(annotationId)
       }
 
       // Reset previous annotation fill if different (back to minimal 0.01 to keep it clickable)

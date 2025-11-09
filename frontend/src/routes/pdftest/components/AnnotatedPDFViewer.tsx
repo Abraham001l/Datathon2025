@@ -7,6 +7,7 @@ export interface RectangleAnnotation {
   endX: number
   endY: number
   pageNumber?: number
+  id?: string
 }
 
 interface AnnotatedPDFViewerProps {
@@ -18,6 +19,7 @@ interface AnnotatedPDFViewerProps {
   onLoadStart?: () => void
   onLoadComplete?: () => void
   onError?: (error: string) => void
+  onAnnotationSelected?: (annotationId: string | null) => void
   className?: string
 }
 
@@ -30,6 +32,7 @@ export const AnnotatedPDFViewer = ({
   onLoadStart,
   onLoadComplete,
   onError,
+  onAnnotationSelected,
   className,
 }: AnnotatedPDFViewerProps) => {
   const pdfViewerRef = useRef<PDFViewerRef>(null)
@@ -60,7 +63,8 @@ export const AnnotatedPDFViewer = ({
             annotation.startY,
             annotation.endX,
             annotation.endY,
-            annotation.pageNumber
+            annotation.pageNumber,
+            annotation.id
           )
         })
       }
@@ -86,6 +90,7 @@ export const AnnotatedPDFViewer = ({
       onLoadStart={onLoadStart}
       onLoadComplete={handleLoadComplete}
       onError={onError}
+      onAnnotationSelected={onAnnotationSelected}
       className={className}
     />
   )

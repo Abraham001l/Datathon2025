@@ -20,6 +20,15 @@ function ReviewComponent() {
   const [allDocuments, setAllDocuments] = useState<Document[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [boundingBoxes, setBoundingBoxes] = useState<RectangleAnnotation[]>([])
+  const [boundingBoxData, setBoundingBoxData] = useState<Map<string, {
+    id: string
+    text: string
+    classification?: string
+    confidence?: string | number
+    explanation?: string
+    type: string
+  }>>(new Map())
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Fetch document
@@ -56,6 +65,8 @@ function ReviewComponent() {
   useEffect(() => {
     if (!docid) {
       setBoundingBoxes([])
+      setBoundingBoxData(new Map())
+      setSelectedAnnotationId(null)
       return
     }
 
@@ -63,29 +74,51 @@ function ReviewComponent() {
       try {
         const pages = await apiService.getDocumentBoundingBoxes(docid)
         const annotations: RectangleAnnotation[] = []
+        const dataMap = new Map<string, {
+          id: string
+          text: string
+          classification?: string
+          confidence?: string | number
+          explanation?: string
+          type: string
+        }>()
 
         pages.forEach((page) => {
           const pageNumber = page.page_number || 1
-          page.bounding_boxes?.forEach((box) => {
+          page.bounding_boxes?.forEach((box, index) => {
             const vertices = box.bounding_box?.vertices || []
             if (vertices.length >= 2) {
               const xs = vertices.map((v) => v.x)
               const ys = vertices.map((v) => v.y)
+              const boxId = box.id || `${pageNumber}-${index + 1}`
               annotations.push({
                 startX: Math.min(...xs),
                 startY: Math.min(...ys),
                 endX: Math.max(...xs),
                 endY: Math.max(...ys),
                 pageNumber: pageNumber,
+                id: boxId,
+              })
+              
+              // Store full bounding box data
+              dataMap.set(boxId, {
+                id: boxId,
+                text: box.text || '',
+                classification: box.classification,
+                confidence: box.confidence,
+                explanation: box.explanation,
+                type: box.type || 'block',
               })
             }
           })
         })
 
         setBoundingBoxes(annotations)
+        setBoundingBoxData(dataMap)
       } catch (err) {
         console.error('Failed to fetch bounding boxes:', err)
         setBoundingBoxes([])
+        setBoundingBoxData(new Map())
       }
     }
 
@@ -177,6 +210,7 @@ function ReviewComponent() {
                 apiBaseUrl={import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}
                 onLoadComplete={handlePDFLoadComplete}
                 annotations={boundingBoxes}
+                onAnnotationSelected={setSelectedAnnotationId}
               />
             )}
           </div>
@@ -188,7 +222,60 @@ function ReviewComponent() {
             <h2 className="text-lg font-semibold">Makoto Review:</h2>
           </div>
           <div className="flex-1 overflow-auto p-6">
-            <p className="text-gray-500 text-center">Placeholder</p>
+            {selectedAnnotationId && boundingBoxData.has(selectedAnnotationId) ? (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 mb-2">Annotation ID</h3>
+                  <p className="text-sm text-gray-900">{selectedAnnotationId}</p>
+                </div>
+                {boundingBoxData.get(selectedAnnotationId)?.text && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">Text</h3>
+                    <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded border">
+                      {boundingBoxData.get(selectedAnnotationId)?.text}
+                    </p>
+                  </div>
+                )}
+                {boundingBoxData.get(selectedAnnotationId)?.classification && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">Classification</h3>
+                    <p className="text-sm text-gray-900">
+                      {boundingBoxData.get(selectedAnnotationId)?.classification}
+                    </p>
+                  </div>
+                )}
+                {boundingBoxData.get(selectedAnnotationId)?.confidence !== undefined && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">Confidence</h3>
+                    <p className="text-sm text-gray-900">
+                      {(() => {
+                        const confidence = boundingBoxData.get(selectedAnnotationId)?.confidence
+                        if (typeof confidence === 'number') {
+                          return `${(confidence * 100).toFixed(2)}%`
+                        }
+                        return confidence?.toString() || ''
+                      })()}
+                    </p>
+                  </div>
+                )}
+                {boundingBoxData.get(selectedAnnotationId)?.explanation && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">Explanation</h3>
+                    <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded border">
+                      {boundingBoxData.get(selectedAnnotationId)?.explanation}
+                    </p>
+                  </div>
+                )}
+                {boundingBoxData.get(selectedAnnotationId)?.type && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">Type</h3>
+                    <p className="text-sm text-gray-900">{boundingBoxData.get(selectedAnnotationId)?.type}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center">Select an annotation to view details</p>
+            )}
           </div>
         </div>
       </div>
