@@ -287,24 +287,51 @@ function ReviewComponent() {
     const textAnnotationIds = new Set(textAnnotations.map(a => a.id).filter((id): id is string => !!id))
     const imageAnnotationIds = new Set(allImageAnnotations.map(a => a.id).filter((id): id is string => !!id))
 
-    if (viewMode === 'text') {
-      // Show text annotations, hide image annotations
-      if (pdfViewerRef.current.showAnnotationsByIds) {
-        pdfViewerRef.current.showAnnotationsByIds(textAnnotationIds)
+    // Use a delay to ensure annotations are added to the viewer first
+    // (AnnotatedPDFViewer adds annotations with a 300ms delay)
+    const timeoutId = setTimeout(() => {
+      if (!pdfViewerRef.current) return
+
+      if (viewMode === 'text') {
+        // Show text annotations, hide image annotations
+        if (pdfViewerRef.current.showAnnotationsByIds && textAnnotationIds.size > 0) {
+          pdfViewerRef.current.showAnnotationsByIds(textAnnotationIds)
+        }
+        if (pdfViewerRef.current.hideAnnotationsByIds && imageAnnotationIds.size > 0) {
+          pdfViewerRef.current.hideAnnotationsByIds(imageAnnotationIds)
+        }
+      } else {
+        // Show image annotations, hide text annotations
+        if (pdfViewerRef.current.showAnnotationsByIds && imageAnnotationIds.size > 0) {
+          pdfViewerRef.current.showAnnotationsByIds(imageAnnotationIds)
+        }
+        if (pdfViewerRef.current.hideAnnotationsByIds && textAnnotationIds.size > 0) {
+          pdfViewerRef.current.hideAnnotationsByIds(textAnnotationIds)
+        }
       }
-      if (pdfViewerRef.current.hideAnnotationsByIds) {
-        pdfViewerRef.current.hideAnnotationsByIds(imageAnnotationIds)
-      }
-    } else {
-      // Show image annotations, hide text annotations
-      if (pdfViewerRef.current.showAnnotationsByIds) {
-        pdfViewerRef.current.showAnnotationsByIds(imageAnnotationIds)
-      }
-      if (pdfViewerRef.current.hideAnnotationsByIds) {
-        pdfViewerRef.current.hideAnnotationsByIds(textAnnotationIds)
-      }
-    }
+    }, 400) // Wait a bit longer than the annotation add delay (300ms)
+
+    return () => clearTimeout(timeoutId)
   }, [viewMode, textAnnotations, allImageAnnotations])
+
+  // Initially hide image annotations when they're first loaded (if in text mode)
+  useEffect(() => {
+    if (!pdfViewerRef.current || viewMode !== 'text' || allImageAnnotations.length === 0) return
+
+    // Hide image annotations when they're first loaded
+    const imageAnnotationIds = new Set(allImageAnnotations.map(a => a.id).filter((id): id is string => !!id))
+    
+    if (imageAnnotationIds.size > 0) {
+      // Use a delay to ensure annotations are added to the viewer first
+      const timeoutId = setTimeout(() => {
+        if (pdfViewerRef.current?.hideAnnotationsByIds) {
+          pdfViewerRef.current.hideAnnotationsByIds(imageAnnotationIds)
+        }
+      }, 400)
+
+      return () => clearTimeout(timeoutId)
+    }
+  }, [allImageAnnotations, viewMode])
 
   // Combine all annotations - both text and image - to pass to viewer
   // The viewer will show/hide them based on viewMode
@@ -400,12 +427,35 @@ function ReviewComponent() {
                 onLoadComplete={handlePDFLoadComplete}
                 annotations={currentAnnotations}
                 onAnnotationSelected={(id) => {
-                  if (viewMode === 'text') {
-                    setSelectedAnnotationId(id)
-                    setSelectedImageAnnotationId(null)
-                  } else {
-                    setSelectedImageAnnotationId(id)
+                  if (!id) {
                     setSelectedAnnotationId(null)
+                    setSelectedImageAnnotationId(null)
+                    return
+                  }
+                  
+                  // Check if it's an image annotation (starts with "img-")
+                  const isImageAnnotation = id.startsWith('img-')
+                  
+                  if (viewMode === 'text') {
+                    // In text mode, only allow selecting text annotations
+                    if (!isImageAnnotation) {
+                      setSelectedAnnotationId(id)
+                      setSelectedImageAnnotationId(null)
+                    } else {
+                      // Ignore image annotation selection in text mode
+                      setSelectedAnnotationId(null)
+                      setSelectedImageAnnotationId(null)
+                    }
+                  } else {
+                    // In image mode, only allow selecting image annotations
+                    if (isImageAnnotation) {
+                      setSelectedImageAnnotationId(id)
+                      setSelectedAnnotationId(null)
+                    } else {
+                      // Ignore text annotation selection in image mode
+                      setSelectedAnnotationId(null)
+                      setSelectedImageAnnotationId(null)
+                    }
                   }
                 }}
               />
